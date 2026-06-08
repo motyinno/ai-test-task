@@ -9,6 +9,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import * as crypto from 'crypto';
+import { Throttle } from '@nestjs/throttler';
 import { ApiTags, ApiCookieAuth } from '@nestjs/swagger';
 import type { Request } from 'express';
 import 'express-session';
@@ -32,7 +33,9 @@ export class AuthController {
   /**
    * POST /auth/login — validate credentials via Passport local strategy,
    * store principal in session, return MeResponseDto.
+   * Rate limited tighter than global (SEC-004): 5 attempts per minute per IP.
    */
+  @Throttle({ default: { ttl: 60_000, limit: 5 } })
   @UseGuards(LocalAuthGuard)
   @Post('login')
   @HttpCode(200)

@@ -1,5 +1,6 @@
 import { Module, MiddlewareConsumer, NestModule, RequestMethod } from '@nestjs/common';
-import { APP_INTERCEPTOR } from '@nestjs/core';
+import { APP_INTERCEPTOR, APP_GUARD } from '@nestjs/core';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { ConfigModule } from '../shared/config/config.module';
 import { DatabaseModule } from '../shared/database/database.module';
 import { TenancyModule } from '../shared/tenancy/tenancy.module';
@@ -13,12 +14,28 @@ const testControllers =
   process.env['NODE_ENV'] === 'test' ? [SessionTestController] : [];
 
 @Module({
-  imports: [ConfigModule, DatabaseModule, TenancyModule, AuthModule],
+  imports: [
+    ConfigModule,
+    DatabaseModule,
+    TenancyModule,
+    AuthModule,
+    ThrottlerModule.forRoot([
+      {
+        // Global default: 100 requests per minute
+        ttl: 60_000,
+        limit: 100,
+      },
+    ]),
+  ],
   controllers: [HealthController, ...testControllers],
   providers: [
     {
       provide: APP_INTERCEPTOR,
       useClass: TenantInterceptor,
+    },
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
     },
   ],
 })
