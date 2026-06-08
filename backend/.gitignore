@@ -6,3 +6,6 @@ coverage/
 *.env
 !.env.test
 uploads/
+
+vite.config.*.timestamp*
+vitest.config.*.timestamp*
