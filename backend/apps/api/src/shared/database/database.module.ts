@@ -13,7 +13,7 @@ import { ConfigModule } from '../config/config.module';
         type: 'postgres',
         url: configService.getOrThrow<string>('DATABASE_URL'),
         autoLoadEntities: true,
-        synchronize: false,
+        synchronize: process.env.NODE_ENV === 'test',
         migrations: ['dist/database/migrations/*.js'],
         migrationsTableName: 'typeorm_migrations',
         logging: process.env.NODE_ENV === 'development',
