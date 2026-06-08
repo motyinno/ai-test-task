@@ -148,7 +148,14 @@ describe('C5: GET /sharelinks/:code/validate (public)', () => {
     expect(res.body.trainerName).toBe('Coach C5');
   });
 
-  it('valid UNIQUE link → 200 { valid:true, type:UNIQUE, targetEmail }', async () => {
+  /**
+   * C-1 Security fix: public /validate must NOT expose targetEmail (PII).
+   * The spec preview is advisory-display only: { valid, type, trainerName }.
+   *
+   * Failing-first check: before C-1 fix, res.body.targetEmail === 'coach@example.com'.
+   * After fix: targetEmail must be absent from the public response.
+   */
+  it('valid UNIQUE link → 200 { valid:true, type:UNIQUE } and does NOT leak targetEmail', async () => {
     const link = await seedLink({
       code: 'valid-unique-c5',
       type: ShareLinkType.UNIQUE,
@@ -164,7 +171,8 @@ describe('C5: GET /sharelinks/:code/validate (public)', () => {
     expect(res.status).toBe(200);
     expect(res.body.valid).toBe(true);
     expect(res.body.type).toBe('UNIQUE');
-    expect(res.body.targetEmail).toBe('coach@example.com');
+    // SECURITY (C-1): targetEmail must NOT be present in the public response
+    expect(res.body.targetEmail).toBeUndefined();
   });
 
   it('validate is public — no session cookie required', async () => {

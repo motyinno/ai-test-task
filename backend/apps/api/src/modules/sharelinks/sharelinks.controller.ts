@@ -101,11 +101,13 @@ export class ShareLinksController {
       where: { userId: link.trainerId },
     });
 
+    // SECURITY (C-1): targetEmail is intentionally NOT returned here.
+    // This is a public unauthenticated endpoint; including the invited coach's
+    // email would expose PII to any holder of the code.
     return {
       valid: true,
       type: link.type,
       trainerName: trainerProfile?.trainerName,
-      targetEmail: link.targetEmail,
     };
   }
 
