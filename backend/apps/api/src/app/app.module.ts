@@ -2,6 +2,7 @@ import { Module, MiddlewareConsumer, NestModule, RequestMethod } from '@nestjs/c
 import { APP_INTERCEPTOR, APP_GUARD } from '@nestjs/core';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { RolesGuard } from '../shared/authz/roles.guard';
+import { AuthzModule } from '../shared/authz/authz.module';
 import { ConfigModule } from '../shared/config/config.module';
 import { DatabaseModule } from '../shared/database/database.module';
 import { TenancyModule } from '../shared/tenancy/tenancy.module';
@@ -20,6 +21,7 @@ const testControllers =
     DatabaseModule,
     TenancyModule,
     AuthModule,
+    AuthzModule,
     ThrottlerModule.forRoot([
       {
         // Global default: 100 requests per minute (1s TTL in test to avoid cross-test contamination)
