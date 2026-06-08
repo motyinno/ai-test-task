@@ -9,8 +9,10 @@ import * as crypto from 'crypto';
 import { UsersRepository } from './users.repository';
 import { User, UserRole, UserStatus } from './entities/user.entity';
 import { TrainerProfile } from './entities/trainer-profile.entity';
+import { CoachProfile } from './entities/coach-profile.entity';
+import { PlayerProfile } from './entities/player-profile.entity';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { DataSource, Repository } from 'typeorm';
 import { PasswordService } from '../../shared/crypto/password.service';
 import { EmailService } from '../../shared/integrations/email/email.service';
 import { ListUsersQueryDto } from './dto/list-users-query.dto';
@@ -26,8 +28,13 @@ export class UsersService {
     private readonly usersRepo: UsersRepository,
     private readonly passwordService: PasswordService,
     private readonly emailService: EmailService,
+    private readonly dataSource: DataSource,
     @InjectRepository(TrainerProfile)
     private readonly trainerProfileRepo: Repository<TrainerProfile>,
+    @InjectRepository(CoachProfile)
+    private readonly coachProfileRepo: Repository<CoachProfile>,
+    @InjectRepository(PlayerProfile)
+    private readonly playerProfileRepo: Repository<PlayerProfile>,
   ) {}
 
   // ─── B2: GET /users (SA directory) ─────────────────────────────────────────
@@ -84,26 +91,50 @@ export class UsersService {
       passwordHash = await this.passwordService.hash(crypto.randomBytes(32).toString('hex'));
     }
 
-    const user = await this.usersRepo.create({
-      email: dto.email,
-      passwordHash,
-      role: UserRole.TRAINER,
-      status: UserStatus.ACTIVE,
-      mustChangePassword: dto.onboardingMode === 'TEMP_PASSWORD',
-      emailVerified: false,
-    });
+    // M1: Wrap User insert + TrainerProfile insert in ONE transaction.
+    // If TrainerProfile save fails, the User is rolled back — no orphaned accounts.
+    const user = await this.dataSource.transaction(async (em) => {
+      const newUser = em.create(User, {
+        email: dto.email,
+        passwordHash,
+        role: UserRole.TRAINER,
+        status: UserStatus.ACTIVE,
+        mustChangePassword: dto.onboardingMode === 'TEMP_PASSWORD',
+        emailVerified: false,
+      });
+      const savedUser = await em.save(User, newUser);
 
-    // Create the TrainerProfile in the same logical flow
-    await this.trainerProfileRepo.save(
-      this.trainerProfileRepo.create({
-        userId: user.id,
+      const profile = em.create(TrainerProfile, {
+        userId: savedUser.id,
         businessName: dto.businessName,
         trainerName: dto.trainerName,
         phone: dto.phone ?? null,
-      }),
-    );
+      });
+      await em.save(TrainerProfile, profile);
 
-    // Send invite/temp-password email via EmailService port
+      return savedUser;
+    });
+
+    // M2: Send email AFTER commit, best-effort — mail failure must never fail the request.
+    // Any send error is caught-and-logged, not propagated to the caller.
+    this.sendOnboardingEmail(dto, tempPassword, inviteToken).catch((err) => {
+      this.logger.warn(
+        `[EMAIL] Onboarding email failed for ${dto.email}: ${(err as Error).message}`,
+      );
+    });
+
+    // Audit: log the creation (simplified — full AuditModule is Phase F)
+    this.logger.log(`[AUDIT] Trainer created: userId=${user.id} by SA=${createdByUserId}`);
+
+    return this.toResponseDto(user);
+  }
+
+  /** M2: Best-effort email send — called after DB commit. Never throws to the caller. */
+  private async sendOnboardingEmail(
+    dto: CreateTrainerDto,
+    tempPassword: string | undefined,
+    inviteToken: string | undefined,
+  ): Promise<void> {
     if (dto.onboardingMode === 'TEMP_PASSWORD' && tempPassword) {
       await this.emailService.send({
         to: dto.email,
@@ -119,11 +150,6 @@ export class UsersService {
         data: { inviteToken, email: dto.email },
       });
     }
-
-    // Audit: log the creation (simplified — full AuditModule is Phase F)
-    this.logger.log(`[AUDIT] Trainer created: userId=${user.id} by SA=${createdByUserId}`);
-
-    return this.toResponseDto(user);
   }
 
   // ─── B4: PATCH /users/:id ─────────────────────────────────────────────────
@@ -138,9 +164,9 @@ export class UsersService {
     const updates: Partial<User> = {};
     if (dto.status !== undefined) updates.status = dto.status;
 
-    // firstName / lastName / phone are not on the User entity;
-    // they live on role-specific profiles. We update the TrainerProfile if it exists.
-    if (dto.firstName !== undefined || dto.lastName !== undefined || dto.phone !== undefined) {
+    // M5: Per-role profile field mapping — firstName and phone are applied
+    // to the matching role profile. Each branch only touches the relevant table.
+    if (dto.firstName !== undefined || dto.phone !== undefined) {
       if (user.role === UserRole.TRAINER) {
         const profile = await this.trainerProfileRepo.findOne({ where: { userId: id } });
         if (profile) {
@@ -149,7 +175,17 @@ export class UsersService {
           if (dto.phone !== undefined) profileUpdates.phone = dto.phone ?? null;
           await this.trainerProfileRepo.update(profile.id, profileUpdates);
         }
+      } else if (user.role === UserRole.PLAYER) {
+        if (dto.firstName !== undefined) {
+          const profile = await this.playerProfileRepo.findOne({ where: { userId: id } });
+          if (profile) {
+            await this.playerProfileRepo.update(profile.id, { name: dto.firstName });
+          }
+        }
+        // phone: PlayerProfile has no phone column — intentionally not applied
       }
+      // COACH: no firstName/phone fields on CoachProfile — no-op
+      // SUPER_ADMIN: no role profile — no-op
     }
 
     if (Object.keys(updates).length > 0) {
@@ -173,9 +209,17 @@ export class UsersService {
         errorCode: 'USER_ANONYMIZED',
       });
     }
-    await this.usersRepo.update(id, { status: UserStatus.INACTIVE });
-    const updated = await this.usersRepo.findById(id);
-    return this.toResponseDto(updated!);
+    // Race-safe: conditional UPDATE WHERE anonymized_at IS NULL — 409 if a concurrent
+    // anonymization ran between the guard check above and this write.
+    const updated = await this.usersRepo.updateStatusIfNotAnonymized(id, UserStatus.INACTIVE);
+    if (!updated) {
+      throw new ConflictException({
+        message: 'Cannot deactivate an anonymized user',
+        errorCode: 'USER_ANONYMIZED',
+      });
+    }
+    const result = await this.usersRepo.findById(id);
+    return this.toResponseDto(result!);
   }
 
   // ─── B5: POST /users/:id/reactivate ───────────────────────────────────────
@@ -194,9 +238,16 @@ export class UsersService {
       });
     }
 
-    await this.usersRepo.update(id, { status: UserStatus.ACTIVE });
-    const updated = await this.usersRepo.findById(id);
-    return this.toResponseDto(updated!);
+    // Race-safe: conditional UPDATE WHERE anonymized_at IS NULL
+    const updated = await this.usersRepo.updateStatusIfNotAnonymized(id, UserStatus.ACTIVE);
+    if (!updated) {
+      throw new ConflictException({
+        message: 'Cannot reactivate an anonymized (GDPR-deleted) user',
+        errorCode: 'USER_ANONYMIZED',
+      });
+    }
+    const result = await this.usersRepo.findById(id);
+    return this.toResponseDto(result!);
   }
 
   // ─── B6: DELETE /users/:id (GDPR anonymize) ───────────────────────────────

@@ -1,7 +1,6 @@
 import {
   Injectable,
   NotFoundException,
-  UnauthorizedException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -13,6 +12,19 @@ import { StorageService, StorageFile } from '../../shared/integrations/storage/s
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { ProfileResponseDto } from './dto/profile-response.dto';
 
+/**
+ * ProfileService — self-profile reads/writes for the authenticated user.
+ *
+ * M3 (CoachProfile tenancy): CoachProfile is an org-bound entity (A1 architecture).
+ * All accesses in this service are legitimately self-only: every query is scoped
+ * to `{ where: { userId } }` where userId = the authenticated caller's own user ID.
+ * No cross-tenant listing is possible through this service.
+ *
+ * IMPORTANT: Phase C/E must NOT add coach-listing queries here. Any query that
+ * reads CoachProfiles by trainerId or returns multiple coaches MUST go through
+ * a TenantAwareRepository (scopedFind / scopedFindOne). Adding such queries here
+ * would bypass the H6 structural scoping guarantee.
+ */
 @Injectable()
 export class ProfileService {
   constructor(
@@ -20,6 +32,11 @@ export class ProfileService {
     private readonly userRepo: Repository<User>,
     @InjectRepository(TrainerProfile)
     private readonly trainerProfileRepo: Repository<TrainerProfile>,
+    /**
+     * M3: CoachProfile is org-bound, but this repo is used ONLY for self-reads
+     * (findOne by own userId). This is the audited withoutTenantScope equivalent
+     * for a single-row self-lookup. See class-level note above.
+     */
     @InjectRepository(CoachProfile)
     private readonly coachProfileRepo: Repository<CoachProfile>,
     @InjectRepository(PlayerProfile)
@@ -93,7 +110,7 @@ export class ProfileService {
   ): Promise<{ photoUrl: string; thumbnailUrl?: string }> {
     const user = await this.userRepo.findOne({ where: { id: userId } });
     if (!user) {
-      throw new UnauthorizedException();
+      throw new NotFoundException({ message: 'User not found', errorCode: 'USER_NOT_FOUND' });
     }
 
     const result = await this.storageService.put(file, `profiles/${userId}`);

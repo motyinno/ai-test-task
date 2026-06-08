@@ -1,16 +1,23 @@
 /**
- * Standalone migration runner for Phase A Foundation tables (C4).
+ * Unified migration runner — Phase A + Phase B.
  *
- * Runs the same SQL as PhaseAFoundation1749340000000 migration.
- * Uses the `pg` client directly — no TypeScript compilation needed.
+ * Single source of truth for all schema migrations (M4 fix).
+ * run-phase-b-migrations.mjs has been removed; this file now covers both phases.
  *
- * Usage:
+ * Prerequisite: PostgreSQL must have the uuid-ossp extension enabled:
+ *   CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+ *
+ * Usage (from backend/ directory):
  *   DATABASE_URL=postgresql://... node apps/api/src/shared/database/run-migrations.mjs
  *
- * Or (loads .env.test automatically if DATABASE_URL not set):
+ * Or (auto-loads .env.test when DATABASE_URL is not set):
  *   node apps/api/src/shared/database/run-migrations.mjs
  *
- * Idempotent: uses IF NOT EXISTS / ON CONFLICT DO NOTHING so it is safe to run multiple times.
+ * Idempotent: uses IF NOT EXISTS / DO blocks and checks typeorm_migrations table
+ * before running each migration.
+ *
+ * Phase A prerequisite: uuid extension + base tables (users, sessions, etc.)
+ * Phase B prerequisite: Phase A must be applied first.
  */
 import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
@@ -45,9 +52,14 @@ if (!DATABASE_URL) {
   process.exit(1);
 }
 
-const MIGRATION_NAME = 'PhaseAFoundation1749340000000';
+// ── Phase A: Foundation ───────────────────────────────────────────────────────
 
-const UP_QUERIES = [
+const PHASE_A_MIGRATION_NAME = 'PhaseAFoundation1749340000000';
+
+const PHASE_A_QUERIES = [
+  // Prerequisite: uuid extension (idempotent)
+  `CREATE EXTENSION IF NOT EXISTS "uuid-ossp"`,
+
   // Enums (idempotent via DO block)
   `DO $$ BEGIN
     CREATE TYPE "public"."users_role_enum" AS ENUM(
@@ -132,13 +144,135 @@ const UP_QUERIES = [
   )`,
 ];
 
+// ── Phase B: Profiles ─────────────────────────────────────────────────────────
+
+const PHASE_B_MIGRATION_NAME = 'PhaseBProfiles1749400000000';
+
+const PHASE_B_QUERIES = [
+  // trainer_profiles
+  `CREATE TABLE IF NOT EXISTS "trainer_profiles" (
+    "id"                UUID                        NOT NULL DEFAULT uuid_generate_v4(),
+    "user_id"           UUID                        NOT NULL,
+    "business_name"     CHARACTER VARYING(200)      NOT NULL,
+    "trainer_name"      CHARACTER VARYING(100)      NOT NULL,
+    "phone"             CHARACTER VARYING(20)       NULL DEFAULT NULL,
+    "photo_url"         TEXT                        NULL DEFAULT NULL,
+    "stripe_account_id" TEXT                        NULL DEFAULT NULL,
+    "created_at"        TIMESTAMP                   NOT NULL DEFAULT NOW(),
+    "updated_at"        TIMESTAMP                   NOT NULL DEFAULT NOW(),
+    CONSTRAINT "PK_trainer_profiles" PRIMARY KEY ("id"),
+    CONSTRAINT "UQ_trainer_profiles_user_id" UNIQUE ("user_id"),
+    CONSTRAINT "FK_trainer_profiles_user"
+      FOREIGN KEY ("user_id") REFERENCES "users" ("id") ON DELETE CASCADE
+  )`,
+
+  // coach_profiles
+  `CREATE TABLE IF NOT EXISTS "coach_profiles" (
+    "id"             UUID                   NOT NULL DEFAULT uuid_generate_v4(),
+    "user_id"        UUID                   NOT NULL,
+    "trainer_id"     UUID                   NOT NULL,
+    "bio"            TEXT                   NULL DEFAULT NULL,
+    "credentials"    TEXT                   NULL DEFAULT NULL,
+    "public_profile" BOOLEAN                NOT NULL DEFAULT FALSE,
+    "photo_url"      TEXT                   NULL DEFAULT NULL,
+    "created_at"     TIMESTAMP              NOT NULL DEFAULT NOW(),
+    "updated_at"     TIMESTAMP              NOT NULL DEFAULT NOW(),
+    CONSTRAINT "PK_coach_profiles" PRIMARY KEY ("id"),
+    CONSTRAINT "UQ_coach_profiles_user_id" UNIQUE ("user_id"),
+    CONSTRAINT "FK_coach_profiles_user"
+      FOREIGN KEY ("user_id") REFERENCES "users" ("id") ON DELETE CASCADE
+  )`,
+
+  `CREATE INDEX IF NOT EXISTS "IDX_coach_profiles_trainer_id" ON "coach_profiles" ("trainer_id")`,
+
+  // player_profiles (gender enum)
+  `DO $$ BEGIN
+    CREATE TYPE "public"."player_profiles_gender_enum" AS ENUM('MALE', 'FEMALE', 'OTHER');
+  EXCEPTION WHEN duplicate_object THEN NULL;
+  END $$`,
+
+  `CREATE TABLE IF NOT EXISTS "player_profiles" (
+    "id"                              UUID                                        NOT NULL DEFAULT uuid_generate_v4(),
+    "user_id"                         UUID                                        NOT NULL,
+    "parent_user_id"                  UUID                                        NULL DEFAULT NULL,
+    "name"                            CHARACTER VARYING(200)                      NOT NULL,
+    "age"                             INTEGER                                     NULL DEFAULT NULL,
+    "gender"                          "public"."player_profiles_gender_enum"      NULL DEFAULT NULL,
+    "school"                          CHARACTER VARYING(200)                      NULL DEFAULT NULL,
+    "jersey_number"                   CHARACTER VARYING(20)                       NULL DEFAULT NULL,
+    "skill_level"                     CHARACTER VARYING(50)                       NULL DEFAULT NULL,
+    "photo_url"                       TEXT                                        NULL DEFAULT NULL,
+    "allow_token_spend_without_approval" BOOLEAN                                 NOT NULL DEFAULT FALSE,
+    "created_at"                      TIMESTAMP                                   NOT NULL DEFAULT NOW(),
+    "updated_at"                      TIMESTAMP                                   NOT NULL DEFAULT NOW(),
+    CONSTRAINT "PK_player_profiles" PRIMARY KEY ("id"),
+    CONSTRAINT "UQ_player_profiles_user_id" UNIQUE ("user_id"),
+    CONSTRAINT "FK_player_profiles_user"
+      FOREIGN KEY ("user_id") REFERENCES "users" ("id") ON DELETE CASCADE
+  )`,
+
+  /*
+   * NOTE: parent_user_id intentionally has no FK constraint (D7 GDPR design):
+   * when a parent user is anonymized, the child PlayerProfile row must remain
+   * intact. A hard FK would prevent anonymization without deleting the child.
+   * Relationship integrity is maintained at the service layer.
+   */
+  `CREATE INDEX IF NOT EXISTS "IDX_player_profiles_parent_user_id" ON "player_profiles" ("parent_user_id")`,
+
+  // user_deletion_log
+  `CREATE TABLE IF NOT EXISTS "user_deletion_log" (
+    "id"               UUID                   NOT NULL DEFAULT uuid_generate_v4(),
+    "original_user_id" UUID                   NOT NULL,
+    "original_email"   TEXT                   NOT NULL,
+    "deleted_by"       UUID                   NOT NULL,
+    "reason"           TEXT                   NOT NULL,
+    "deleted_at"       TIMESTAMP              NOT NULL DEFAULT NOW(),
+    "backup_ref"       TEXT                   NULL DEFAULT NULL,
+    CONSTRAINT "PK_user_deletion_log" PRIMARY KEY ("id")
+  )`,
+
+  `CREATE INDEX IF NOT EXISTS "IDX_user_deletion_log_original_user_id"
+    ON "user_deletion_log" ("original_user_id")`,
+];
+
+// ── Runner ────────────────────────────────────────────────────────────────────
+
+async function runMigration(client, name, timestamp, queries) {
+  const existing = await client.query(
+    `SELECT 1 FROM "typeorm_migrations" WHERE "name" = $1 LIMIT 1`,
+    [name],
+  );
+
+  if (existing.rows.length > 0) {
+    console.log(`Migration ${name} already applied — skipping`);
+    return;
+  }
+
+  await client.query('BEGIN');
+  console.log(`Running migration: ${name}`);
+
+  for (const query of queries) {
+    const preview = query.trim().split('\n')[0].trim().substring(0, 80);
+    console.log(`  > ${preview}...`);
+    await client.query(query);
+  }
+
+  await client.query(
+    `INSERT INTO "typeorm_migrations" ("timestamp", "name") VALUES ($1, $2)`,
+    [timestamp, name],
+  );
+
+  await client.query('COMMIT');
+  console.log(`Migration ${name} completed successfully`);
+}
+
 async function run() {
   const client = new Client({ connectionString: DATABASE_URL });
   await client.connect();
   console.log('Connected to database');
 
   try {
-    // Step 1: Ensure migrations tracking table exists (outside transaction so it persists)
+    // Ensure migrations tracking table exists (outside transaction so it persists)
     await client.query(`CREATE TABLE IF NOT EXISTS "typeorm_migrations" (
       "id"         SERIAL  NOT NULL,
       "timestamp"  BIGINT  NOT NULL,
@@ -146,34 +280,33 @@ async function run() {
       CONSTRAINT "PK_typeorm_migrations" PRIMARY KEY ("id")
     )`);
 
-    // Step 2: Check if this migration already ran
-    const existing = await client.query(
-      `SELECT 1 FROM "typeorm_migrations" WHERE "name" = $1 LIMIT 1`,
-      [MIGRATION_NAME],
-    );
+    // Phase A: Foundation (prerequisite for Phase B)
+    await runMigration(client, PHASE_A_MIGRATION_NAME, 1749340000000, PHASE_A_QUERIES);
 
-    if (existing.rows.length > 0) {
-      console.log(`Migration ${MIGRATION_NAME} already applied — skipping`);
-      return;
+    // Phase B: Profiles
+    await runMigration(client, PHASE_B_MIGRATION_NAME, 1749400000000, PHASE_B_QUERIES);
+
+    // Verify key tables exist
+    const tables = [
+      'users',
+      'trainer_profiles',
+      'coach_profiles',
+      'player_profiles',
+      'user_deletion_log',
+    ];
+    for (const table of tables) {
+      const result = await client.query(
+        `SELECT 1 FROM information_schema.tables WHERE table_name = $1`,
+        [table],
+      );
+      if (result.rows.length === 0) {
+        console.error(`ERROR: Table ${table} was not created!`);
+        process.exit(1);
+      }
+      console.log(`  ✓ Table "${table}" exists`);
     }
 
-    // Step 3: Run all UP queries in a transaction
-    await client.query('BEGIN');
-    console.log(`Running migration: ${MIGRATION_NAME}`);
-    for (const query of UP_QUERIES) {
-      const preview = query.trim().split('\n')[0].trim().substring(0, 80);
-      console.log(`  > ${preview}...`);
-      await client.query(query);
-    }
-
-    // Record migration
-    await client.query(
-      `INSERT INTO "typeorm_migrations" ("timestamp", "name") VALUES ($1, $2)`,
-      [1749340000000, MIGRATION_NAME],
-    );
-
-    await client.query('COMMIT');
-    console.log(`Migration ${MIGRATION_NAME} completed successfully`);
+    console.log('\nAll migrations applied successfully.');
   } catch (err) {
     await client.query('ROLLBACK').catch(() => {});
     console.error('Migration failed:', err);

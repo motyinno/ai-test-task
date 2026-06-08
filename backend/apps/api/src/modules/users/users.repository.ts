@@ -2,6 +2,9 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource, ILike } from 'typeorm';
 import { User, UserStatus } from './entities/user.entity';
+import { TrainerProfile } from './entities/trainer-profile.entity';
+import { CoachProfile } from './entities/coach-profile.entity';
+import { PlayerProfile } from './entities/player-profile.entity';
 import { UserDeletionLog } from './entities/user-deletion-log.entity';
 import { ListUsersQueryDto } from './dto/list-users-query.dto';
 
@@ -44,6 +47,24 @@ export class UsersRepository {
   }
 
   /**
+   * Race-safe status update: only applies when anonymized_at IS NULL.
+   * Returns true if the row was updated, false if 0 rows matched
+   * (user was concurrently anonymized between the guard read and this call).
+   */
+  async updateStatusIfNotAnonymized(
+    id: string,
+    status: UserStatus,
+  ): Promise<boolean> {
+    const result = await this.repo
+      .createQueryBuilder()
+      .update(User)
+      .set({ status })
+      .where('id = :id AND anonymized_at IS NULL', { id })
+      .execute();
+    return (result.affected ?? 0) > 0;
+  }
+
+  /**
    * B2: Paginated directory with search + role + status filters.
    * SA uses system context — no tenant filtering.
    */
@@ -76,9 +97,23 @@ export class UsersRepository {
 
   /**
    * B6: GDPR anonymize in ONE transaction (D7 / US-01.13).
-   * Overwrites all PII columns, sets anonymizedAt + status=DELETED,
-   * and inserts a UserDeletionLog row in the same transaction.
-   * Idempotent: if already anonymized, no-op (returns existing).
+   *
+   * Scrubs ALL PII in the same transaction:
+   *   1. User row: email, passwordHash, lastLoginAt
+   *   2. TrainerProfile (if role=TRAINER): trainerName, businessName, phone, photoUrl
+   *   3. CoachProfile (if role=COACH): bio, credentials, photoUrl
+   *   4. PlayerProfile (if role=PLAYER): name, school, jerseyNumber, photoUrl
+   *      — age and gender are RETAINED for analytics per US-01.13
+   *   5. UserDeletionLog audit entry
+   *
+   * Idempotent: if already anonymized, no-op (returns existing state).
+   * Atomic: any failure rolls back all writes.
+   * FKs preserved: no rows are deleted.
+   *
+   * NOTE: PlayerProfile rows where parentUserId = userId are NOT touched here.
+   * Those rows belong to child users (separate people) — only the parent's own
+   * profile (linked via userId) is scrubbed. Child users have their own GDPR
+   * deletion path.
    */
   async anonymizeInTransaction(
     userId: string,
@@ -99,7 +134,7 @@ export class UsersRepository {
         return user;
       }
 
-      // Wipe PII in-place (D7)
+      // 1. Wipe User PII in-place (D7)
       await em.update(User, userId, {
         email: `deleted_${userId}@example.com`,
         passwordHash: 'ANONYMIZED',
@@ -108,7 +143,38 @@ export class UsersRepository {
         lastLoginAt: null,
       });
 
-      // Write audit log in same transaction
+      // 2. Scrub role-specific profile PII in the same transaction
+      const trainerProfile = await em.findOne(TrainerProfile, { where: { userId } });
+      if (trainerProfile) {
+        await em.update(TrainerProfile, trainerProfile.id, {
+          trainerName: 'Deleted User',
+          businessName: 'Deleted User',
+          phone: null,
+          photoUrl: null,
+        });
+      }
+
+      const coachProfile = await em.findOne(CoachProfile, { where: { userId } });
+      if (coachProfile) {
+        await em.update(CoachProfile, coachProfile.id, {
+          bio: null,
+          credentials: null,
+          photoUrl: null,
+        });
+      }
+
+      const playerProfile = await em.findOne(PlayerProfile, { where: { userId } });
+      if (playerProfile) {
+        // US-01.13: null the identifiers; retain age/gender for analytics
+        await em.update(PlayerProfile, playerProfile.id, {
+          name: 'Deleted User',
+          school: null,
+          jerseyNumber: null,
+          photoUrl: null,
+        });
+      }
+
+      // 3. Write audit log in same transaction
       const logEntry = em.create(UserDeletionLog, {
         originalUserId: userId,
         originalEmail: opts.originalEmail,

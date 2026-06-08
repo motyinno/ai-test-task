@@ -23,6 +23,8 @@ import { bootstrapApp } from '../../../shared/bootstrap/bootstrap';
 import { User, UserRole, UserStatus } from '../entities/user.entity';
 import { UserDeletionLog } from '../entities/user-deletion-log.entity';
 import { TrainerProfile } from '../entities/trainer-profile.entity';
+import { CoachProfile } from '../entities/coach-profile.entity';
+import { PlayerProfile } from '../entities/player-profile.entity';
 import { PasswordService } from '../../../shared/crypto/password.service';
 import { EmailService } from '../../../shared/integrations/email/email.service';
 
@@ -31,6 +33,8 @@ describe('B2-B6: Users API (Super Admin)', () => {
   let userRepo: Repository<User>;
   let deletionLogRepo: Repository<UserDeletionLog>;
   let trainerProfileRepo: Repository<TrainerProfile>;
+  let coachProfileRepo: Repository<CoachProfile>;
+  let playerProfileRepo: Repository<PlayerProfile>;
   let passwordService: PasswordService;
   let emailService: EmailService;
   let dataSource: DataSource;
@@ -55,6 +59,8 @@ describe('B2-B6: Users API (Super Admin)', () => {
     userRepo = moduleFixture.get(getRepositoryToken(User));
     deletionLogRepo = moduleFixture.get(getRepositoryToken(UserDeletionLog));
     trainerProfileRepo = moduleFixture.get(getRepositoryToken(TrainerProfile));
+    coachProfileRepo = moduleFixture.get(getRepositoryToken(CoachProfile));
+    playerProfileRepo = moduleFixture.get(getRepositoryToken(PlayerProfile));
     passwordService = moduleFixture.get(PasswordService);
     emailService = moduleFixture.get(EmailService);
     dataSource = moduleFixture.get(DataSource);
@@ -658,6 +664,202 @@ describe('B2-B6: Users API (Super Admin)', () => {
       expect(dbRow!.email).toBe(`deleted_${victimId}@example.com`);
       expect(dbRow!.email).not.toBe('sanity-email@users-test.com');
       expect(dbRow!.email.length).toBeGreaterThan(0);
+    });
+  });
+
+  // ─── C1: GDPR — profile PII scrub (D7 / US-01.13) ───────────────────────
+  // FAILING-FIRST: These tests must fail before anonymizeInTransaction scrubs profiles.
+  // After the fix they pin that TrainerProfile/CoachProfile/PlayerProfile PII is
+  // genuinely erased in the same transaction as the User row wipe.
+
+  describe('C1 GDPR: role-profile PII scrubbed on DELETE (D7 / US-01.13)', () => {
+    // ── Trainer ────────────────────────────────────────────────────────────
+
+    it('TrainerProfile PII is scrubbed in the same transaction as user anonymization', async () => {
+      // Arrange: create trainer via POST /users (this also creates the TrainerProfile)
+      const res = await request(app.getHttpServer())
+        .post('/api/v1/users')
+        .set('Cookie', saCookie)
+        .set('X-CSRF-Token', csrfToken)
+        .send({
+          businessName: 'GDPR Biz',
+          trainerName: 'GDPR Trainer',
+          email: 'c1-trainer@users-test.com',
+          onboardingMode: 'INVITE_LINK',
+          phone: '+12025550001',
+        });
+
+      expect(res.status).toBe(201);
+      const trainerId = res.body.id as string;
+
+      // Verify profile exists with PII before delete
+      const profileBefore = await trainerProfileRepo.findOne({ where: { userId: trainerId } });
+      expect(profileBefore).not.toBeNull();
+      expect(profileBefore!.trainerName).toBe('GDPR Trainer');
+      expect(profileBefore!.businessName).toBe('GDPR Biz');
+
+      // Act: GDPR delete
+      const delRes = await request(app.getHttpServer())
+        .delete(`/api/v1/users/${trainerId}`)
+        .set('Cookie', saCookie)
+        .set('X-CSRF-Token', csrfToken)
+        .send({ reason: 'C1 trainer profile scrub test' });
+
+      expect(delRes.status).toBe(200);
+
+      // Assert: TrainerProfile PII columns must be scrubbed
+      const profileAfter = await trainerProfileRepo.findOne({ where: { userId: trainerId } });
+      expect(profileAfter).not.toBeNull(); // row preserved (no delete)
+      expect(profileAfter!.trainerName).toBe('Deleted User');
+      expect(profileAfter!.businessName).toBe('Deleted User');
+      expect(profileAfter!.phone).toBeNull();
+      expect(profileAfter!.photoUrl).toBeNull();
+    });
+
+    // ── Coach ──────────────────────────────────────────────────────────────
+
+    it('CoachProfile PII is scrubbed in the same transaction as user anonymization', async () => {
+      // Arrange: create a coach user and seed CoachProfile directly in DB
+      const hash = await passwordService.hash(PASSWORD);
+      const trainerUser = await userRepo.save(
+        userRepo.create({
+          email: 'c1-trainer-owner@users-test.com',
+          passwordHash: hash,
+          role: UserRole.TRAINER,
+          status: UserStatus.ACTIVE,
+        }),
+      );
+      const coachUser = await userRepo.save(
+        userRepo.create({
+          email: 'c1-coach@users-test.com',
+          passwordHash: hash,
+          role: UserRole.COACH,
+          status: UserStatus.ACTIVE,
+        }),
+      );
+      await coachProfileRepo.save(
+        coachProfileRepo.create({
+          userId: coachUser.id,
+          trainerId: trainerUser.id,
+          bio: 'Experienced coach',
+          credentials: 'UEFA Pro License',
+          photoUrl: 'https://example.com/coach.jpg',
+          publicProfile: true,
+        }),
+      );
+
+      // Verify profile exists with PII before delete
+      const profileBefore = await coachProfileRepo.findOne({ where: { userId: coachUser.id } });
+      expect(profileBefore).not.toBeNull();
+      expect(profileBefore!.bio).toBe('Experienced coach');
+      expect(profileBefore!.credentials).toBe('UEFA Pro License');
+      expect(profileBefore!.photoUrl).toBe('https://example.com/coach.jpg');
+
+      // Act: GDPR delete
+      const delRes = await request(app.getHttpServer())
+        .delete(`/api/v1/users/${coachUser.id}`)
+        .set('Cookie', saCookie)
+        .set('X-CSRF-Token', csrfToken)
+        .send({ reason: 'C1 coach profile scrub test' });
+
+      expect(delRes.status).toBe(200);
+
+      // Assert: CoachProfile PII columns must be scrubbed
+      const profileAfter = await coachProfileRepo.findOne({ where: { userId: coachUser.id } });
+      expect(profileAfter).not.toBeNull(); // row preserved
+      expect(profileAfter!.bio).toBeNull();
+      expect(profileAfter!.credentials).toBeNull();
+      expect(profileAfter!.photoUrl).toBeNull();
+    });
+
+    // ── Player ─────────────────────────────────────────────────────────────
+
+    it('PlayerProfile PII is scrubbed in the same transaction as user anonymization', async () => {
+      // Arrange: create a player user and seed PlayerProfile directly in DB
+      const hash = await passwordService.hash(PASSWORD);
+      const playerUser = await userRepo.save(
+        userRepo.create({
+          email: 'c1-player@users-test.com',
+          passwordHash: hash,
+          role: UserRole.PLAYER,
+          status: UserStatus.ACTIVE,
+        }),
+      );
+      await playerProfileRepo.save(
+        playerProfileRepo.create({
+          userId: playerUser.id,
+          name: 'Alex Smith',
+          age: 16,
+          gender: 'MALE',
+          school: 'Springfield High',
+          jerseyNumber: '10',
+          photoUrl: 'https://example.com/player.jpg',
+        }),
+      );
+
+      // Verify profile exists with PII before delete
+      const profileBefore = await playerProfileRepo.findOne({ where: { userId: playerUser.id } });
+      expect(profileBefore).not.toBeNull();
+      expect(profileBefore!.name).toBe('Alex Smith');
+      expect(profileBefore!.school).toBe('Springfield High');
+      expect(profileBefore!.jerseyNumber).toBe('10');
+      expect(profileBefore!.photoUrl).toBe('https://example.com/player.jpg');
+
+      // Act: GDPR delete
+      const delRes = await request(app.getHttpServer())
+        .delete(`/api/v1/users/${playerUser.id}`)
+        .set('Cookie', saCookie)
+        .set('X-CSRF-Token', csrfToken)
+        .send({ reason: 'C1 player profile scrub test' });
+
+      expect(delRes.status).toBe(200);
+
+      // Assert: PlayerProfile PII columns scrubbed; age/gender kept for analytics (US-01.13)
+      const profileAfter = await playerProfileRepo.findOne({ where: { userId: playerUser.id } });
+      expect(profileAfter).not.toBeNull(); // row preserved
+      expect(profileAfter!.name).toBe('Deleted User');
+      expect(profileAfter!.school).toBeNull();
+      expect(profileAfter!.jerseyNumber).toBeNull();
+      expect(profileAfter!.photoUrl).toBeNull();
+      // age and gender are retained for analytics per US-01.13
+      expect(profileAfter!.age).toBe(16);
+      expect(profileAfter!.gender).toBe('MALE');
+    });
+
+    it('profile scrub is idempotent — second DELETE returns 200 without error', async () => {
+      const hash = await passwordService.hash(PASSWORD);
+      const u = await userRepo.save(
+        userRepo.create({
+          email: 'c1-idempotent@users-test.com',
+          passwordHash: hash,
+          role: UserRole.TRAINER,
+          status: UserStatus.ACTIVE,
+        }),
+      );
+      await trainerProfileRepo.save(
+        trainerProfileRepo.create({
+          userId: u.id,
+          businessName: 'Idempotent Biz',
+          trainerName: 'Idempotent Trainer',
+        }),
+      );
+
+      // First delete
+      await request(app.getHttpServer())
+        .delete(`/api/v1/users/${u.id}`)
+        .set('Cookie', saCookie)
+        .set('X-CSRF-Token', csrfToken)
+        .send({ reason: 'First delete' });
+
+      // Second delete — must be 200 (idempotent)
+      const res2 = await request(app.getHttpServer())
+        .delete(`/api/v1/users/${u.id}`)
+        .set('Cookie', saCookie)
+        .set('X-CSRF-Token', csrfToken)
+        .send({ reason: 'Second delete idempotency' });
+
+      expect(res2.status).toBe(200);
+      expect(res2.body.status).toBe(UserStatus.DELETED);
     });
   });
 });
