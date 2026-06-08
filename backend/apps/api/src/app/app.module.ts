@@ -13,6 +13,8 @@ import { AuthModule } from '../modules/auth/auth.module';
 import { UsersModule } from '../modules/users/users.module';
 import { ProfileModule } from '../modules/profile/profile.module';
 import { StorageModule } from '../shared/integrations/storage/storage.module';
+import { ShareLinksModule } from '../modules/sharelinks/sharelinks.module';
+import { PlayersModule } from '../modules/players/players.module';
 import { HealthController } from '../shared/health/health.controller';
 import { SessionTestController } from '../shared/session/session-test.controller';
 
@@ -28,6 +30,8 @@ const testControllers =
     AuthModule,
     UsersModule,
     ProfileModule,
+    ShareLinksModule,
+    PlayersModule,
     AuthzModule,
     ThrottlerModule.forRoot([
       {
