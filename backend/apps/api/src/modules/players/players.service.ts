@@ -131,6 +131,14 @@ export class PlayersService {
     dto: JoinViaLinkDto,
     code: string,
   ): Promise<JoinResult> {
+    // Validate required fields for anonymous registration
+    if (!dto.email || !dto.password || !dto.playerName) {
+      throw new ConflictException({
+        message: 'email, password, and playerName are required for anonymous registration',
+        errorCode: 'VALIDATION_ERROR',
+      });
+    }
+
     // Check for duplicate email before beginning the transaction
     const existing = await this.usersRepo.findByEmail(dto.email);
     if (existing) {

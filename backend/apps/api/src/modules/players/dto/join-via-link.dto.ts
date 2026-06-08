@@ -5,23 +5,28 @@ import { IsEmail, IsString, MinLength, IsInt, IsOptional, IsIn, Min, Max } from 
  * Body for POST /join/:code
  * Used when an anonymous (unauthenticated) visitor registers via a share link.
  *
- * For already-authenticated players, the body fields are ignored — association
- * is created from the existing session principal.
+ * For already-authenticated players/coaches, the body fields (email, password,
+ * playerName) are ignored — association is created from the existing session principal.
+ * All fields are optional at the DTO level; the service validates presence for the
+ * anonymous-registration path.
  */
 export class JoinViaLinkDto {
-  @ApiProperty({ description: 'Account holder email' })
+  @ApiProperty({ description: 'Account holder email (required for anonymous registration)' })
+  @IsOptional()
   @IsEmail()
-  email!: string;
+  email?: string;
 
-  @ApiProperty({ description: 'Account password (will be argon2-hashed)' })
+  @ApiProperty({ description: 'Account password (required for anonymous registration)' })
+  @IsOptional()
   @IsString()
   @MinLength(8)
-  password!: string;
+  password?: string;
 
-  @ApiProperty({ description: 'Display name for the player profile' })
+  @ApiProperty({ description: 'Display name for the player profile (required for anonymous registration)' })
+  @IsOptional()
   @IsString()
   @MinLength(1)
-  playerName!: string;
+  playerName?: string;
 
   @ApiPropertyOptional({ description: 'Age in years' })
   @IsOptional()
