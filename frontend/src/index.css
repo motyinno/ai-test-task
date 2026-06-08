@@ -1,0 +1,48 @@
+@import './styles/tokens.css';
+@import 'tailwindcss';
+
+/* === Base resets === */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-body);
+  background-color: var(--bg);
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+#root {
+  min-height: 100svh;
+}
+
+/* === Focus rings — derived from --brand-primary === */
+:focus-visible {
+  outline: 2px solid var(--brand-primary);
+  outline-offset: 2px;
+  border-radius: var(--radius-xs);
+}
+
+/* === Reduced motion baseline === */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* === Spinner keyframe (used by Button loading state) === */
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* === Skeleton pulse (used by DataTable loading skeletons) === */
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
