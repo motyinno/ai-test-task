@@ -11,6 +11,8 @@ import { TenantMiddleware } from '../shared/tenancy/tenant.middleware';
 import { CsrfMiddleware } from '../shared/security/csrf.middleware';
 import { AuthModule } from '../modules/auth/auth.module';
 import { UsersModule } from '../modules/users/users.module';
+import { ProfileModule } from '../modules/profile/profile.module';
+import { StorageModule } from '../shared/integrations/storage/storage.module';
 import { HealthController } from '../shared/health/health.controller';
 import { SessionTestController } from '../shared/session/session-test.controller';
 
@@ -22,8 +24,10 @@ const testControllers =
     ConfigModule,
     DatabaseModule,
     TenancyModule,
+    StorageModule,
     AuthModule,
     UsersModule,
+    ProfileModule,
     AuthzModule,
     ThrottlerModule.forRoot([
       {
