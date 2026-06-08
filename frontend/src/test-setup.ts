@@ -1,5 +1,6 @@
 import '@testing-library/jest-dom';
 import { server } from './mocks/server';
+import { clearCsrfCache } from './api/client';
 
 // jsdom doesn't implement window.matchMedia — provide a stub
 Object.defineProperty(window, 'matchMedia', {
@@ -17,5 +18,8 @@ Object.defineProperty(window, 'matchMedia', {
 });
 
 beforeAll(() => server.listen({ onUnhandledRequest: 'warn' }));
-afterEach(() => server.resetHandlers());
+afterEach(() => {
+  server.resetHandlers();
+  clearCsrfCache();
+});
 afterAll(() => server.close());
