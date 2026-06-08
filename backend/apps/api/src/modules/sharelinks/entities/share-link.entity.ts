@@ -45,7 +45,7 @@ export class ShareLink {
   createdBy!: string;
 
   /** Required for UNIQUE (coach invite) links; null for STATIC (player) links. */
-  @Column({ name: 'target_email', nullable: true, default: null })
+  @Column({ name: 'target_email', type: 'varchar', nullable: true, default: null })
   targetEmail: string | null = null;
 
   /**
