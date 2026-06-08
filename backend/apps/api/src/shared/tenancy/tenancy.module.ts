@@ -1,6 +1,7 @@
 import { Global, Module } from '@nestjs/common';
 import { ClsModule } from 'nestjs-cls';
 import { TenantContextService } from './tenant-context.service';
+import { TenantMiddleware } from './tenant.middleware';
 
 @Global()
 @Module({
@@ -10,7 +11,7 @@ import { TenantContextService } from './tenant-context.service';
       global: true,
     }),
   ],
-  providers: [TenantContextService],
-  exports: [TenantContextService, ClsModule],
+  providers: [TenantContextService, TenantMiddleware],
+  exports: [TenantContextService, TenantMiddleware, ClsModule],
 })
 export class TenancyModule {}

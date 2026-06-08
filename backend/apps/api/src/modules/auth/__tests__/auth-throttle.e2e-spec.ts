@@ -1,11 +1,10 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { INestApplication, ValidationPipe } from '@nestjs/common';
+import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { AppModule } from '../../../app/app.module';
-import { HttpExceptionFilter } from '../../../shared/errors/http-exception.filter';
-import { setupSession } from '../../../shared/session/session.setup';
+import { bootstrapApp } from '../../../shared/bootstrap/bootstrap';
 import { User, UserRole, UserStatus } from '../../users/entities/user.entity';
 import { PasswordService } from '../../../shared/crypto/password.service';
 
@@ -26,10 +25,7 @@ describe('Auth Rate Limiting (e2e)', () => {
     }).compile();
 
     app = moduleFixture.createNestApplication();
-    app.setGlobalPrefix('api/v1');
-    setupSession(app);
-    app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
-    app.useGlobalFilters(new HttpExceptionFilter());
+    await bootstrapApp(app);
     await app.init();
 
     userRepo = moduleFixture.get(getRepositoryToken(User));

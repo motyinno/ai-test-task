@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable, BadRequestException, UnauthorizedException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Request } from 'express';
@@ -44,7 +44,7 @@ export class AuthService {
   getMe(req: Request): MeResponseDto {
     const principal = this.sessionCtx.getPrincipal(req);
     if (!principal) {
-      throw new Error('Not authenticated');
+      throw new UnauthorizedException('Not authenticated');
     }
     return this.buildMeResponse(principal, req);
   }
