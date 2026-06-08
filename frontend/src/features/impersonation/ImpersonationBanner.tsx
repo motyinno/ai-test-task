@@ -1,3 +1,12 @@
+/**
+ * PracticePerfect Impersonation hazard banner.
+ * - Sticky at top, role="alert", full-bleed --hazard background
+ * - Diagonal hazard-stripe texture (paused under prefers-reduced-motion)
+ * - Shows "VIEWING AS [NAME]" + live countdown to 1h cap
+ * - EXIT IMPERSONATION button: POST /impersonation/exit, then refetch me
+ * - Auto-exits when countdown hits 0
+ * - Updated to PracticePerfect design tokens (no --speed-angle, uses 10deg fixed)
+ */
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useMe, ME_QUERY_KEY } from '@/providers/auth-provider';
@@ -31,16 +40,6 @@ function formatCountdown(remainingMs: number): string {
   return `${minutes}:${seconds.toString().padStart(2, '0')}`;
 }
 
-/**
- * Impersonation hazard banner (signature component).
- *
- * - Sticky at top, role="alert", full-bleed --hazard background
- * - Diagonal hazard-stripe texture (paused under prefers-reduced-motion)
- * - Shows "VIEWING AS [NAME] · [ROLE]" + live countdown to 1h cap
- * - EXIT IMPERSONATION button: POST /impersonation/exit, then refetch me
- * - Auto-exits when countdown hits 0
- * - Renders nothing when not impersonating
- */
 export function ImpersonationBanner({ startedAt }: ImpersonationBannerProps) {
   const { data: me } = useMe();
   const qc = useQueryClient();
@@ -90,16 +89,18 @@ export function ImpersonationBanner({ startedAt }: ImpersonationBannerProps) {
 
   const isUrgent = remainingMs < 5 * 60 * 1000; // < 5 min
 
-  // Hazard diagonal stripe via repeating-linear-gradient
-  const stripeStyle: React.CSSProperties = {
-    backgroundImage: `repeating-linear-gradient(
-      var(--speed-angle),
-      rgba(0,0,0,0.15) 0px,
-      rgba(0,0,0,0.15) 10px,
-      transparent 10px,
-      transparent 20px
-    )`,
-  };
+  // Hazard diagonal stripe texture (fixed -10deg; no CSS var needed)
+  const stripeStyle: React.CSSProperties = reducedMotion
+    ? {}
+    : {
+        backgroundImage: `repeating-linear-gradient(
+        -10deg,
+        rgba(0,0,0,0.12) 0px,
+        rgba(0,0,0,0.12) 10px,
+        transparent 10px,
+        transparent 20px
+      )`,
+      };
 
   return (
     <div
@@ -112,25 +113,25 @@ export function ImpersonationBanner({ startedAt }: ImpersonationBannerProps) {
         backgroundColor: 'var(--hazard)',
         color: '#FFFFFF',
         ...stripeStyle,
-        padding: '0.5rem 1.5rem',
+        padding: 'var(--space-xs) var(--space-lg)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
-        gap: '1rem',
+        gap: 'var(--space-md)',
         minHeight: '2.75rem',
       }}
     >
       {/* Left: status text */}
       <span
         style={{
-          fontFamily: 'var(--font-mono)',
-          fontSize: 'var(--text-label)',
+          fontFamily: 'var(--font-body)',
+          fontSize: 'var(--text-eyebrow)',
           textTransform: 'uppercase',
-          letterSpacing: '0.08em',
+          letterSpacing: '0.06em',
           fontWeight: 700,
           display: 'flex',
           alignItems: 'center',
-          gap: '0.75rem',
+          gap: 'var(--space-sm)',
           flexWrap: 'wrap',
         }}
       >
@@ -153,16 +154,16 @@ export function ImpersonationBanner({ startedAt }: ImpersonationBannerProps) {
         disabled={exitMutation.isPending}
         aria-label="Exit impersonation"
         style={{
-          fontFamily: 'var(--font-mono)',
-          fontSize: 'var(--text-label)',
+          fontFamily: 'var(--font-body)',
+          fontSize: 'var(--text-eyebrow)',
           textTransform: 'uppercase',
-          letterSpacing: '0.08em',
+          letterSpacing: '0.06em',
           fontWeight: 700,
           background: 'rgba(255,255,255,0.2)',
           color: '#FFFFFF',
           border: '1px solid rgba(255,255,255,0.5)',
           borderRadius: 'var(--radius-sm)',
-          padding: '0.25rem 0.75rem',
+          padding: 'var(--space-xxs) var(--space-sm)',
           cursor: 'pointer',
           whiteSpace: 'nowrap',
         }}

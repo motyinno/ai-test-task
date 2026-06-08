@@ -1,3 +1,8 @@
+/**
+ * PracticePerfect Users admin page.
+ * SA chrome only — uses ink/paper/border-soft palette (no brand accent).
+ * Updated to PracticePerfect design tokens.
+ */
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { usersApi, type UserResponseDto, type CreateTrainerDto } from '@/api/endpoints/users';
@@ -29,10 +34,11 @@ function StatusChip({ status }: { status: UserResponseDto['status'] }) {
   return (
     <span
       style={{
-        fontFamily: 'var(--font-mono)',
-        fontSize: 'var(--text-label)',
+        fontFamily: 'var(--font-body)',
+        fontSize: 'var(--text-eyebrow)',
         textTransform: 'uppercase',
-        letterSpacing: '0.08em',
+        letterSpacing: '0.06em',
+        fontWeight: 600,
         color: colors[status] ?? 'var(--muted)',
       }}
     >
@@ -54,7 +60,12 @@ export default function UsersPage() {
   const { data, isLoading } = useQuery({
     queryKey: [...USERS_QUERY_KEY, { page, search, roleFilter, statusFilter }],
     queryFn: () =>
-      usersApi.list({ page, search: search || undefined, role: roleFilter || undefined, status: statusFilter || undefined }),
+      usersApi.list({
+        page,
+        search: search || undefined,
+        role: roleFilter || undefined,
+        status: statusFilter || undefined,
+      }),
   });
 
   const createMutation = useMutation({
@@ -91,6 +102,18 @@ export default function UsersPage() {
     });
   };
 
+  const selectStyle: React.CSSProperties = {
+    fontFamily: 'var(--font-body)',
+    fontSize: 'var(--text-body)',
+    color: 'var(--text-primary)',
+    backgroundColor: 'var(--surface)',
+    border: '1px solid var(--border-soft)',
+    borderRadius: 'var(--radius-sm)',
+    padding: '0 10px',
+    height: '40px',
+    outline: 'none',
+  };
+
   const columns: Column<UserResponseDto>[] = [
     {
       key: 'displayName',
@@ -100,6 +123,7 @@ export default function UsersPage() {
           style={{
             color: row.status === 'DELETED' ? 'var(--muted)' : 'var(--ink)',
             textDecoration: row.status === 'DELETED' ? 'line-through' : 'none',
+            fontWeight: 500,
           }}
         >
           {String(val)}
@@ -112,9 +136,9 @@ export default function UsersPage() {
       render: (val, row) => (
         <span
           style={{
-            fontFamily: 'var(--font-mono)',
-            fontSize: 'var(--text-sm)',
-            color: row.status === 'DELETED' ? 'var(--muted)' : 'var(--ink-2)',
+            fontFamily: 'var(--font-body)',
+            fontSize: 'var(--text-body)',
+            color: row.status === 'DELETED' ? 'var(--muted)' : 'var(--text-secondary)',
           }}
         >
           {String(val)}
@@ -125,7 +149,16 @@ export default function UsersPage() {
       key: 'role',
       header: 'Role',
       render: (val) => (
-        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--text-label)', textTransform: 'uppercase', color: 'var(--muted)' }}>
+        <span
+          style={{
+            fontFamily: 'var(--font-body)',
+            fontSize: 'var(--text-eyebrow)',
+            textTransform: 'uppercase',
+            letterSpacing: '0.06em',
+            fontWeight: 600,
+            color: 'var(--muted)',
+          }}
+        >
           {String(val)}
         </span>
       ),
@@ -139,20 +172,21 @@ export default function UsersPage() {
       key: 'id',
       header: 'Actions',
       render: (_val, row) => (
-        <div style={{ display: 'flex', gap: '0.5rem' }}>
+        <div style={{ display: 'flex', gap: 'var(--space-xs)' }}>
           {row.status !== 'DELETED' && (
             <button
               onClick={() => impersonateMutation.mutate(row.id)}
               style={{
                 background: 'none',
-                border: '1px solid var(--line)',
-                borderRadius: 'var(--radius-sm)',
+                border: '1px solid var(--border-soft)',
+                borderRadius: 'var(--radius-xs)',
                 padding: '0.25rem 0.5rem',
                 cursor: 'pointer',
-                fontFamily: 'var(--font-mono)',
-                fontSize: 'var(--text-label)',
+                fontFamily: 'var(--font-body)',
+                fontSize: 'var(--text-eyebrow)',
                 textTransform: 'uppercase',
-                color: 'var(--ink-2)',
+                letterSpacing: '0.04em',
+                color: 'var(--text-secondary)',
               }}
             >
               Impersonate
@@ -171,8 +205,8 @@ export default function UsersPage() {
       role="main"
       data-sa-chrome="true"
       style={{
-        padding: '2rem',
-        backgroundColor: 'var(--paper)',
+        padding: 'var(--space-xl)',
+        backgroundColor: 'var(--bg)',
         minHeight: '100svh',
       }}
     >
@@ -182,18 +216,19 @@ export default function UsersPage() {
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'flex-end',
-          marginBottom: '2rem',
+          marginBottom: 'var(--space-xl)',
         }}
       >
         <div>
           <div
             style={{
-              fontFamily: 'var(--font-mono)',
-              fontSize: 'var(--text-label)',
+              fontFamily: 'var(--font-body)',
+              fontSize: 'var(--text-eyebrow)',
               textTransform: 'uppercase',
-              letterSpacing: '0.08em',
+              letterSpacing: '0.06em',
+              fontWeight: 600,
               color: 'var(--muted)',
-              marginBottom: '0.25rem',
+              marginBottom: 'var(--space-xxs)',
             }}
           >
             Super Admin
@@ -201,18 +236,17 @@ export default function UsersPage() {
           <h1
             style={{
               fontFamily: 'var(--font-display)',
-              fontSize: 'var(--text-h1)',
+              fontSize: 'var(--text-hero)',
               fontWeight: 700,
-              textTransform: 'uppercase',
               color: 'var(--ink)',
               margin: 0,
-              letterSpacing: '-0.02em',
+              lineHeight: '38px',
             }}
           >
             Users
           </h1>
           {meta.total > 0 && (
-            <div style={{ marginTop: '0.5rem' }}>
+            <div style={{ marginTop: 'var(--space-sm)' }}>
               <StatNumber value={meta.total} label="Total Users" />
             </div>
           )}
@@ -227,8 +261,8 @@ export default function UsersPage() {
       <div
         style={{
           display: 'flex',
-          gap: '1rem',
-          marginBottom: '1.5rem',
+          gap: 'var(--space-md)',
+          marginBottom: 'var(--space-lg)',
           flexWrap: 'wrap',
         }}
       >
@@ -239,13 +273,7 @@ export default function UsersPage() {
           onChange={(e) => { setSearch(e.target.value); setPage(1); }}
           aria-label="Search users"
           style={{
-            fontFamily: 'var(--font-body)',
-            fontSize: 'var(--text-sm)',
-            color: 'var(--ink)',
-            backgroundColor: 'var(--surface)',
-            border: '1px solid var(--line)',
-            borderRadius: 'var(--radius-sm)',
-            padding: '0.5rem 0.75rem',
+            ...selectStyle,
             flex: '1 1 200px',
           }}
         />
@@ -253,15 +281,7 @@ export default function UsersPage() {
           value={roleFilter}
           onChange={(e) => { setRoleFilter(e.target.value); setPage(1); }}
           aria-label="Filter by role"
-          style={{
-            fontFamily: 'var(--font-mono)',
-            fontSize: 'var(--text-sm)',
-            color: 'var(--ink)',
-            backgroundColor: 'var(--surface)',
-            border: '1px solid var(--line)',
-            borderRadius: 'var(--radius-sm)',
-            padding: '0.5rem 0.75rem',
-          }}
+          style={selectStyle}
         >
           <option value="">All Roles</option>
           <option value="SUPER_ADMIN">Super Admin</option>
@@ -273,15 +293,7 @@ export default function UsersPage() {
           value={statusFilter}
           onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
           aria-label="Filter by status"
-          style={{
-            fontFamily: 'var(--font-mono)',
-            fontSize: 'var(--text-sm)',
-            color: 'var(--ink)',
-            backgroundColor: 'var(--surface)',
-            border: '1px solid var(--line)',
-            borderRadius: 'var(--radius-sm)',
-            padding: '0.5rem 0.75rem',
-          }}
+          style={selectStyle}
         >
           <option value="">All Statuses</option>
           <option value="ACTIVE">Active</option>
@@ -291,7 +303,15 @@ export default function UsersPage() {
       </div>
 
       {/* Table */}
-      <div style={{ backgroundColor: 'var(--surface)', borderRadius: 'var(--radius-md)', border: '1px solid var(--line)' }}>
+      <div
+        style={{
+          backgroundColor: 'var(--surface)',
+          borderRadius: 'var(--radius-md)',
+          boxShadow: 'var(--shadow-card-soft)',
+          border: '1px solid var(--border-soft)',
+          overflow: 'hidden',
+        }}
+      >
         <DataTable<UserResponseDto>
           columns={columns}
           data={users}
@@ -302,7 +322,7 @@ export default function UsersPage() {
         />
       </div>
 
-      {/* Create User Sheet */}
+      {/* Create Trainer Sheet */}
       <Sheet
         isOpen={isCreateOpen}
         onClose={() => setIsCreateOpen(false)}
@@ -311,19 +331,20 @@ export default function UsersPage() {
         <form
           onSubmit={handleSubmit(onCreateSubmit)}
           noValidate
-          style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}
+          style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}
         >
           {createError && (
             <div
               aria-live="polite"
               role="alert"
               style={{
-                padding: '0.75rem',
+                padding: 'var(--space-sm) var(--space-md)',
                 color: 'var(--danger)',
                 border: '1px solid var(--danger)',
-                borderRadius: 'var(--radius-md)',
-                fontFamily: 'var(--font-mono)',
-                fontSize: 'var(--text-sm)',
+                borderRadius: 'var(--radius-sm)',
+                fontFamily: 'var(--font-body)',
+                fontSize: 'var(--text-body)',
+                backgroundColor: 'rgba(196,43,43,0.06)',
               }}
             >
               {createError}
@@ -360,6 +381,7 @@ export default function UsersPage() {
           <Button
             type="submit"
             loading={createMutation.isPending}
+            style={{ width: '100%' }}
           >
             Create
           </Button>

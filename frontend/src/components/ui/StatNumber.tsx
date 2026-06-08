@@ -1,3 +1,11 @@
+/**
+ * PracticePerfect StatNumber.
+ * - Oversized stat numeral (--text-stat clamp)
+ * - Count-up animation on first paint (disabled under prefers-reduced-motion)
+ * - tabular-nums so layout never shifts
+ * - Eyebrow UPPERCASE label below
+ * - No hardcoded hex — all colors via CSS tokens
+ */
 import React, { useEffect, useRef, useState } from 'react';
 
 interface StatNumberProps {
@@ -24,13 +32,6 @@ function useReducedMotion(): boolean {
   return reduced;
 }
 
-/**
- * Tale-of-the-tape StatNumber.
- * - Oversized condensed Clash Display numeral
- * - Count-up animation on first paint (disabled under prefers-reduced-motion)
- * - tabular-nums so layout never shifts
- * - Mono UPPERCASE label below
- */
 export function StatNumber({ value, label, duration = 1200, className = '' }: StatNumberProps) {
   const reducedMotion = useReducedMotion();
   const [displayValue, setDisplayValue] = useState(reducedMotion ? value : 0);
@@ -77,7 +78,7 @@ export function StatNumber({ value, label, duration = 1200, className = '' }: St
           fontFamily: 'var(--font-display)',
           fontSize: 'var(--text-stat)',
           fontWeight: 700,
-          letterSpacing: '-0.03em',
+          letterSpacing: '-0.02em',
           color: 'var(--ink)',
           fontVariantNumeric: 'tabular-nums',
           lineHeight: 1,
@@ -88,10 +89,11 @@ export function StatNumber({ value, label, duration = 1200, className = '' }: St
       <span
         aria-hidden="true"
         style={{
-          fontFamily: 'var(--font-mono)',
-          fontSize: 'var(--text-label)',
+          fontFamily: 'var(--font-body)',
+          fontSize: 'var(--text-eyebrow)',
           textTransform: 'uppercase',
-          letterSpacing: '0.08em',
+          letterSpacing: '0.06em',
+          fontWeight: 600,
           color: 'var(--muted)',
         }}
       >

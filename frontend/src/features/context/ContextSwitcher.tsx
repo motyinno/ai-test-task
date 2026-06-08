@@ -1,3 +1,9 @@
+/**
+ * PracticePerfect ContextSwitcher / Masthead.
+ * Updated to PracticePerfect design tokens.
+ * - Active context in display font caps
+ * - Multi-context: dropdown channel list with keyboard roving
+ */
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useMe, ME_QUERY_KEY } from '@/providers/auth-provider';
@@ -5,13 +11,8 @@ import { playersContextApi, type ContextDto } from '@/api/endpoints/players-cont
 
 const CONTEXTS_QUERY_KEY = ['players', 'me', 'contexts'] as const;
 
-/**
- * Groups contexts into "Your Training" (self) and "Your Children's Training" (children).
- * Child principals see only their own list (no "Me" group with isSelf grouping).
- */
 function groupContexts(contexts: ContextDto[], isChild: boolean) {
   if (isChild) {
-    // Child sees only their trainers — no "Me" group header
     return { self: contexts, children: [] };
   }
   const self = contexts.filter((c) => c.isSelf);
@@ -19,18 +20,6 @@ function groupContexts(contexts: ContextDto[], isChild: boolean) {
   return { self, children: childContexts };
 }
 
-/**
- * ContextSwitcher / Masthead (signature component).
- *
- * - Resting: active context in Clash Display caps + mono sub-label
- * - Single context: static masthead (no chevron, no expand button)
- * - Multi context: a button opens a channel-list panel
- *   - Grouped: "Your Training" (Me → trainers) + "Your Children's Training" (child → trainers)
- *   - Child principal: only their own trainers — no "Me" group
- * - Selecting: POST /players/me/context + invalidate me
- * - Keyboard: roving focus on options with ArrowDown/ArrowUp, Enter to select, Esc to close
- * - Accessible: role=listbox + role=option
- */
 export function ContextSwitcher() {
   const { data: me } = useMe();
   const qc = useQueryClient();
@@ -62,7 +51,6 @@ export function ContextSwitcher() {
 
   const activeLabel = me?.activeContext?.label ?? '';
 
-  // Keyboard roving focus
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
       if (!isOpen) return;
@@ -85,7 +73,6 @@ export function ContextSwitcher() {
     [isOpen, allOptions, focusedIndex, switchMutation],
   );
 
-  // Focus the active option when list opens
   useEffect(() => {
     if (isOpen && listRef.current) {
       const optionEls = listRef.current.querySelectorAll<HTMLElement>('[role="option"]');
@@ -93,7 +80,6 @@ export function ContextSwitcher() {
     }
   }, [isOpen, focusedIndex]);
 
-  // Close on outside click
   useEffect(() => {
     if (!isOpen) return;
     const handleOutside = (e: MouseEvent) => {
@@ -112,23 +98,21 @@ export function ContextSwitcher() {
         style={{
           display: 'flex',
           alignItems: 'center',
-          gap: '0.75rem',
+          gap: 'var(--space-sm)',
         }}
       >
         <span
           style={{
             fontFamily: 'var(--font-display)',
-            fontSize: 'var(--text-h2)',
+            fontSize: 'var(--text-section)',
             fontWeight: 700,
-            textTransform: 'uppercase',
             color: 'var(--ink)',
-            letterSpacing: '-0.01em',
+            lineHeight: '28px',
           }}
         >
           {activeLabel}
         </span>
 
-        {/* Expand button — only when multi-context */}
         {hasMultiple && (
           <button
             ref={triggerRef}
@@ -150,7 +134,6 @@ export function ContextSwitcher() {
               alignItems: 'center',
             }}
           >
-            {/* Speed-rule chevron */}
             <svg
               width="12"
               height="8"
@@ -162,7 +145,12 @@ export function ContextSwitcher() {
                 transition: 'transform 0.2s ease',
               }}
             >
-              <path d="M1 1L6 7L11 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="square" />
+              <path
+                d="M1 1L6 7L11 1"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+              />
             </svg>
           </button>
         )}
@@ -180,25 +168,26 @@ export function ContextSwitcher() {
             left: 0,
             minWidth: '280px',
             backgroundColor: 'var(--surface)',
-            border: '1px solid var(--line)',
+            border: '1px solid var(--border-soft)',
             borderRadius: 'var(--radius-md)',
-            boxShadow: 'var(--shadow-card)',
+            boxShadow: 'var(--shadow-card-soft)',
             zIndex: 60,
             overflow: 'hidden',
           }}
         >
-          {/* "Your Training" group (self contexts) */}
+          {/* "Your Training" group */}
           {!isChild && selfContexts.length > 0 && (
             <div>
               <div
                 style={{
-                  padding: '0.5rem 0.75rem 0.25rem',
-                  fontFamily: 'var(--font-mono)',
-                  fontSize: 'var(--text-label)',
+                  padding: 'var(--space-xs) var(--space-sm) var(--space-xxs)',
+                  fontFamily: 'var(--font-body)',
+                  fontSize: 'var(--text-eyebrow)',
                   textTransform: 'uppercase',
-                  letterSpacing: '0.08em',
+                  letterSpacing: '0.06em',
+                  fontWeight: 600,
                   color: 'var(--muted)',
-                  borderBottom: '1px solid var(--line)',
+                  borderBottom: '1px solid var(--border-soft)',
                 }}
               >
                 Your Training
@@ -228,14 +217,15 @@ export function ContextSwitcher() {
             <div>
               <div
                 style={{
-                  padding: '0.5rem 0.75rem 0.25rem',
-                  fontFamily: 'var(--font-mono)',
-                  fontSize: 'var(--text-label)',
+                  padding: 'var(--space-xs) var(--space-sm) var(--space-xxs)',
+                  fontFamily: 'var(--font-body)',
+                  fontSize: 'var(--text-eyebrow)',
                   textTransform: 'uppercase',
-                  letterSpacing: '0.08em',
+                  letterSpacing: '0.06em',
+                  fontWeight: 600,
                   color: 'var(--muted)',
-                  borderBottom: '1px solid var(--line)',
-                  borderTop: selfContexts.length > 0 ? '1px solid var(--line)' : undefined,
+                  borderBottom: '1px solid var(--border-soft)',
+                  borderTop: selfContexts.length > 0 ? '1px solid var(--border-soft)' : undefined,
                 }}
               >
                 Your Children's Training
@@ -260,7 +250,7 @@ export function ContextSwitcher() {
             </div>
           )}
 
-          {/* Child principal: just their own contexts, no group header */}
+          {/* Child principal: their own contexts */}
           {isChild &&
             contexts.map((ctx, idx) => (
               <ContextOption
@@ -313,14 +303,16 @@ function ContextOption({ ctx, isFocused, isActive, onSelect }: ContextOptionProp
         }
       }}
       style={{
-        padding: '0.625rem 0.75rem',
+        padding: 'var(--space-sm) var(--space-md)',
         cursor: 'pointer',
-        backgroundColor: isActive ? 'var(--brand-tint)' : 'transparent',
-        borderLeft: isActive ? '2px solid var(--brand)' : '2px solid transparent',
+        backgroundColor: isActive ? 'rgba(var(--brand-primary-rgb), 0.08)' : 'transparent',
+        borderLeft: isActive
+          ? '3px solid var(--brand-primary)'
+          : '3px solid transparent',
         display: 'flex',
         flexDirection: 'column',
-        gap: '0.125rem',
-        outline: isFocused ? '2px solid var(--brand)' : 'none',
+        gap: '2px',
+        outline: isFocused ? '2px solid var(--brand-primary)' : 'none',
         outlineOffset: '-2px',
       }}
     >
@@ -328,8 +320,7 @@ function ContextOption({ ctx, isFocused, isActive, onSelect }: ContextOptionProp
         style={{
           fontFamily: 'var(--font-display)',
           fontWeight: 600,
-          fontSize: 'var(--text-sm)',
-          textTransform: 'uppercase',
+          fontSize: 'var(--text-body)',
           color: 'var(--ink)',
         }}
       >
@@ -337,8 +328,10 @@ function ContextOption({ ctx, isFocused, isActive, onSelect }: ContextOptionProp
       </span>
       <span
         style={{
-          fontFamily: 'var(--font-mono)',
-          fontSize: 'var(--text-label)',
+          fontFamily: 'var(--font-body)',
+          fontSize: 'var(--text-eyebrow)',
+          textTransform: 'uppercase',
+          letterSpacing: '0.04em',
           color: 'var(--muted)',
         }}
       >

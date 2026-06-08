@@ -1,3 +1,12 @@
+/**
+ * PracticePerfect Sheet — right-side panel on desktop, full bottom sheet on mobile.
+ * - Focus trap when open
+ * - Closes on Escape
+ * - Restores focus to trigger element on close
+ * - role="dialog" with aria-modal
+ * - 16px card radius on bottom sheet top edge
+ * - Uses new PracticePerfect design tokens
+ */
 import React, { useEffect, useRef, useCallback } from 'react';
 
 interface SheetProps {
@@ -8,13 +17,6 @@ interface SheetProps {
   side?: 'right' | 'bottom';
 }
 
-/**
- * Editorial Athletic Sheet (right-side panel on desktop, full bottom sheet on mobile).
- * - Focus trap when open
- * - Closes on Escape
- * - Restores focus to trigger element on close
- * - role="dialog" with aria-modal
- */
 export function Sheet({
   isOpen,
   onClose,
@@ -29,7 +31,6 @@ export function Sheet({
   useEffect(() => {
     if (isOpen) {
       previousFocusRef.current = document.activeElement as HTMLElement;
-      // Move focus into the sheet
       setTimeout(() => {
         const focusable = sheetRef.current?.querySelector<HTMLElement>(
           'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
@@ -68,7 +69,7 @@ export function Sheet({
           bottom: 0,
           width: 'min(480px, 100vw)',
           backgroundColor: 'var(--surface)',
-          boxShadow: 'var(--shadow-card)',
+          boxShadow: 'var(--shadow-card-strong)',
           display: 'flex',
           flexDirection: 'column',
           zIndex: 50,
@@ -81,12 +82,12 @@ export function Sheet({
           bottom: 0,
           maxHeight: '90vh',
           backgroundColor: 'var(--surface)',
-          boxShadow: 'var(--shadow-card)',
+          boxShadow: 'var(--shadow-card-strong)',
           display: 'flex',
           flexDirection: 'column',
           zIndex: 50,
           overflowY: 'auto',
-          borderRadius: 'var(--radius-lg) var(--radius-lg) 0 0',
+          borderRadius: 'var(--radius-md) var(--radius-md) 0 0', /* 16px */
         };
 
   return (
@@ -98,7 +99,7 @@ export function Sheet({
         style={{
           position: 'fixed',
           inset: 0,
-          backgroundColor: 'rgba(20,21,26,0.4)',
+          backgroundColor: 'rgba(13, 13, 13, 0.4)',
           zIndex: 40,
         }}
       />
@@ -111,23 +112,24 @@ export function Sheet({
         aria-label={title}
         style={sheetStyle}
       >
-        <div style={{ padding: '1.5rem' }}>
+        <div style={{ padding: 'var(--space-lg)' }}>
           {title && (
             <div
               style={{
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center',
-                marginBottom: '1.5rem',
+                marginBottom: 'var(--space-lg)',
               }}
             >
               <h2
                 style={{
                   fontFamily: 'var(--font-display)',
-                  fontSize: 'var(--text-h2)',
+                  fontSize: 'var(--text-section)',
+                  fontWeight: 700,
                   color: 'var(--ink)',
                   margin: 0,
-                  textTransform: 'uppercase',
+                  lineHeight: '28px',
                 }}
               >
                 {title}

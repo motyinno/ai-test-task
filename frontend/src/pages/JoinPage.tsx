@@ -1,3 +1,7 @@
+/**
+ * PracticePerfect Join page (via ShareLink).
+ * Updated to PracticePerfect design tokens.
+ */
 import React, { useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
@@ -58,7 +62,15 @@ export default function JoinPage() {
 
   if (isLoading) {
     return (
-      <main role="main" style={{ minHeight: '100svh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <main
+        role="main"
+        style={{
+          minHeight: '100svh',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
         <span role="status" aria-label="Loading">Loading…</span>
       </main>
     );
@@ -67,19 +79,29 @@ export default function JoinPage() {
   // Invalid / expired / revoked link
   if (isError || (preview && !preview.valid)) {
     return (
-      <main role="main" style={{ minHeight: '100svh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem' }}>
+      <main
+        role="main"
+        style={{
+          minHeight: '100svh',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: 'var(--space-xl)',
+        }}
+      >
         <div style={{ textAlign: 'center', maxWidth: '400px' }}>
           <h1
             style={{
               fontFamily: 'var(--font-display)',
-              fontSize: 'var(--text-h2)',
-              textTransform: 'uppercase',
+              fontSize: 'var(--text-section)',
+              fontWeight: 700,
               color: 'var(--ink)',
+              lineHeight: '28px',
             }}
           >
             This Link's No Longer Active
           </h1>
-          <p style={{ color: 'var(--muted)', marginTop: '1rem' }}>
+          <p style={{ color: 'var(--muted)', marginTop: 'var(--space-md)', fontSize: 'var(--text-body)' }}>
             This invitation link has expired or been revoked. Please contact your trainer for a new link.
           </p>
         </div>
@@ -89,19 +111,29 @@ export default function JoinPage() {
 
   if (pageState === 'child-blocked') {
     return (
-      <main role="main" style={{ minHeight: '100svh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem' }}>
+      <main
+        role="main"
+        style={{
+          minHeight: '100svh',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: 'var(--space-xl)',
+        }}
+      >
         <div style={{ textAlign: 'center', maxWidth: '400px' }}>
           <h1
             style={{
               fontFamily: 'var(--font-display)',
-              fontSize: 'var(--text-h2)',
-              textTransform: 'uppercase',
+              fontSize: 'var(--text-section)',
+              fontWeight: 700,
               color: 'var(--ink)',
+              lineHeight: '28px',
             }}
           >
             Ask a Parent
           </h1>
-          <p style={{ color: 'var(--muted)', marginTop: '1rem' }}>
+          <p style={{ color: 'var(--muted)', marginTop: 'var(--space-md)', fontSize: 'var(--text-body)' }}>
             This invite needs to be accepted by a parent or guardian. We've sent them an email to complete the process.
           </p>
         </div>
@@ -111,12 +143,29 @@ export default function JoinPage() {
 
   if (pageState === 'success') {
     return (
-      <main role="main" style={{ minHeight: '100svh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem' }}>
+      <main
+        role="main"
+        style={{
+          minHeight: '100svh',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: 'var(--space-xl)',
+        }}
+      >
         <div style={{ textAlign: 'center', maxWidth: '400px' }}>
-          <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--text-h2)', textTransform: 'uppercase', color: 'var(--ink)' }}>
+          <h1
+            style={{
+              fontFamily: 'var(--font-display)',
+              fontSize: 'var(--text-section)',
+              fontWeight: 700,
+              color: 'var(--ink)',
+              lineHeight: '28px',
+            }}
+          >
             Welcome!
           </h1>
-          <p style={{ color: 'var(--muted)', marginTop: '1rem' }}>
+          <p style={{ color: 'var(--muted)', marginTop: 'var(--space-md)', fontSize: 'var(--text-body)' }}>
             You're now connected with {preview?.trainerName ?? 'your trainer'}.
           </p>
         </div>
@@ -125,17 +174,28 @@ export default function JoinPage() {
   }
 
   return (
-    <main role="main" style={{ minHeight: '100svh', backgroundColor: 'var(--paper)', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '3rem 1.5rem' }}>
+    <main
+      role="main"
+      style={{
+        minHeight: '100svh',
+        backgroundColor: 'var(--bg)',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        padding: 'var(--space-xxl) var(--space-lg)',
+      }}
+    >
       {/* Masthead */}
-      <header style={{ marginBottom: '2.5rem', textAlign: 'center' }}>
+      <header style={{ marginBottom: 'var(--space-xxl)', textAlign: 'center' }}>
         <div
           style={{
-            fontFamily: 'var(--font-mono)',
-            fontSize: 'var(--text-label)',
+            fontFamily: 'var(--font-body)',
+            fontSize: 'var(--text-eyebrow)',
             textTransform: 'uppercase',
-            letterSpacing: '0.08em',
+            letterSpacing: '0.06em',
+            fontWeight: 600,
             color: 'var(--muted)',
-            marginBottom: '0.5rem',
+            marginBottom: 'var(--space-xs)',
           }}
         >
           You're invited
@@ -143,24 +203,24 @@ export default function JoinPage() {
         <h1
           style={{
             fontFamily: 'var(--font-display)',
-            fontSize: 'var(--text-h1)',
+            fontSize: 'var(--text-hero)',
             fontWeight: 700,
-            textTransform: 'uppercase',
             color: 'var(--ink)',
             margin: 0,
+            lineHeight: '38px',
           }}
         >
           JOIN {preview?.trainerName?.toUpperCase() ?? 'YOUR TRAINER'}
         </h1>
-        {/* Speed-rule underline */}
+        {/* Brand accent rule */}
         <div
           aria-hidden="true"
           style={{
             width: '40px',
             height: '3px',
-            backgroundColor: 'var(--brand)',
-            margin: '0.75rem auto 0',
-            transform: `skewX(var(--speed-angle))`,
+            backgroundColor: 'var(--brand-primary)',
+            margin: 'var(--space-sm) auto 0',
+            borderRadius: 'var(--radius-pill)',
           }}
         />
       </header>
@@ -171,20 +231,25 @@ export default function JoinPage() {
             aria-live="polite"
             role="alert"
             style={{
-              marginBottom: '1rem',
-              padding: '0.75rem',
+              marginBottom: 'var(--space-md)',
+              padding: 'var(--space-sm) var(--space-md)',
               color: 'var(--danger)',
               border: '1px solid var(--danger)',
-              borderRadius: 'var(--radius-md)',
-              fontSize: 'var(--text-sm)',
-              fontFamily: 'var(--font-mono)',
+              borderRadius: 'var(--radius-sm)',
+              fontSize: 'var(--text-body)',
+              fontFamily: 'var(--font-body)',
+              backgroundColor: 'rgba(196,43,43,0.06)',
             }}
           >
             {serverError}
           </div>
         )}
 
-        <form onSubmit={handleSubmit(onSubmit)} noValidate style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+        <form
+          onSubmit={handleSubmit(onSubmit)}
+          noValidate
+          style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}
+        >
           <Input
             id="name"
             label="Full Name"
@@ -215,7 +280,7 @@ export default function JoinPage() {
               minLength: { value: 8, message: 'At least 8 characters' },
             })}
           />
-          <Button type="submit" loading={submitting}>
+          <Button type="submit" loading={submitting} style={{ width: '100%' }}>
             Join
           </Button>
         </form>

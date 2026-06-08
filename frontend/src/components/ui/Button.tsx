@@ -1,17 +1,20 @@
+/**
+ * PracticePerfect Button component.
+ * - PRIMARY: gradient background (soft→deep), glow shadow, hover lift + scale
+ * - SECONDARY: bordered outline, transparent background
+ * - GHOST: subtle border, transparent
+ * - DANGER: semantic red
+ * - All radii: 10px (--radius-sm)
+ * - No hardcoded hex — all colors via CSS tokens
+ */
 import React from 'react';
 
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   loading?: boolean;
-  variant?: 'primary' | 'ghost' | 'danger';
-  size?: 'sm' | 'md' | 'lg';
+  variant?: 'primary' | 'secondary' | 'ghost' | 'danger';
+  size?: 'sm' | 'md';
 }
 
-/**
- * Editorial Athletic Button.
- * - Primary: speed-rule sweep on hover via CSS
- * - Square-ish corners (var(--radius-md))
- * - Token-driven: uses CSS vars only, no hardcoded hex
- */
 export function Button({
   loading = false,
   variant = 'primary',
@@ -19,6 +22,7 @@ export function Button({
   disabled,
   children,
   className = '',
+  style: externalStyle,
   ...props
 }: ButtonProps) {
   const isDisabled = disabled || loading;
@@ -29,50 +33,83 @@ export function Button({
     justifyContent: 'center',
     gap: '0.5rem',
     fontFamily: 'var(--font-body)',
-    fontWeight: 700,
-    letterSpacing: '0.04em',
-    textTransform: 'uppercase',
-    borderRadius: 'var(--radius-md)',
+    fontWeight: 600,
+    letterSpacing: '0.01em',
+    borderRadius: 'var(--radius-sm)', /* 10px */
     border: 'none',
     cursor: isDisabled ? 'not-allowed' : 'pointer',
-    opacity: isDisabled ? 0.5 : 1,
+    opacity: isDisabled ? 0.55 : 1,
     position: 'relative',
     overflow: 'hidden',
-    transition: 'box-shadow 0.12s ease, transform 0.08s ease',
+    transition: 'box-shadow 0.15s ease, transform 0.12s ease',
+    userSelect: 'none',
+    whiteSpace: 'nowrap',
   };
 
   const sizeStyles: Record<string, React.CSSProperties> = {
-    sm: { padding: '0.375rem 0.75rem', fontSize: 'var(--text-sm)' },
-    md: { padding: '0.625rem 1.25rem', fontSize: 'var(--text-body)' },
-    lg: { padding: '0.875rem 1.75rem', fontSize: 'var(--text-h3)' },
+    sm: { padding: '8px 18px', fontSize: 'var(--text-body)' },   /* ~18px/8px */
+    md: { padding: '10px 24px', fontSize: 'var(--text-body)' },  /* ~24px/10px */
   };
 
   const variantStyles: Record<string, React.CSSProperties> = {
     primary: {
-      backgroundColor: 'var(--brand)',
-      color: 'var(--on-brand)',
+      background: 'linear-gradient(135deg, var(--brand-primary-soft), var(--brand-primary-deep))',
+      color: '#FFFFFF',
+      boxShadow: 'var(--shadow-btn-primary)',
+    },
+    secondary: {
+      background: 'transparent',
+      color: 'var(--brand-text)',
+      border: '1px solid var(--brand-primary)',
     },
     ghost: {
-      backgroundColor: 'transparent',
-      color: 'var(--ink)',
-      border: '1px solid var(--line)',
+      background: 'transparent',
+      color: 'var(--text-primary)',
+      border: '1px solid var(--border-soft)',
     },
     danger: {
-      backgroundColor: 'var(--danger)',
+      background: 'var(--danger)',
       color: '#FFFFFF',
     },
   };
+
+  const [isHovered, setIsHovered] = React.useState(false);
+
+  const hoverOverride: React.CSSProperties =
+    !isDisabled && isHovered && variant === 'primary'
+      ? {
+          transform: 'translateY(-1px) scale(1.02)',
+          boxShadow: 'var(--shadow-btn-primary-hover)',
+        }
+      : {};
 
   return (
     <button
       {...props}
       disabled={isDisabled}
       aria-busy={loading || undefined}
-      style={{ ...baseStyle, ...sizeStyles[size], ...variantStyles[variant] }}
+      onMouseEnter={(e) => {
+        setIsHovered(true);
+        props.onMouseEnter?.(e);
+      }}
+      onMouseLeave={(e) => {
+        setIsHovered(false);
+        props.onMouseLeave?.(e);
+      }}
+      style={{
+        ...baseStyle,
+        ...sizeStyles[size],
+        ...variantStyles[variant],
+        ...hoverOverride,
+        ...externalStyle,
+      }}
       className={className}
     >
       {loading ? (
-        <span aria-hidden="true" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
+        <span
+          aria-hidden="true"
+          style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
+        >
           <span
             style={{
               display: 'inline-block',
@@ -86,7 +123,9 @@ export function Button({
           />
           {children}
         </span>
-      ) : children}
+      ) : (
+        children
+      )}
     </button>
   );
 }

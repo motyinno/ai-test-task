@@ -1,3 +1,7 @@
+/**
+ * PracticePerfect Profile page.
+ * Updated to use PracticePerfect design tokens.
+ */
 import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
@@ -36,7 +40,6 @@ export default function ProfilePage() {
 
   const { register, handleSubmit, reset, formState: { errors, isDirty } } = useForm<ProfileFormValues>();
 
-  // Populate form when profile loads
   useEffect(() => {
     if (profile) {
       reset({
@@ -78,7 +81,6 @@ export default function ProfilePage() {
       dto.jerseyNumber = values.jerseyNumber || undefined;
     }
     if (role === 'PLAYER' && !me?.isChild) {
-      // parent emergency contact
       dto.emergencyContact = values.emergencyContact || undefined;
     }
     updateMutation.mutate(dto);
@@ -86,23 +88,26 @@ export default function ProfilePage() {
 
   if (isLoading) {
     return (
-      <main role="main" style={{ padding: '2rem' }}>
+      <main role="main" style={{ padding: 'var(--space-xl)' }}>
         <span role="status" aria-label="Loading profile">Loading…</span>
       </main>
     );
   }
 
   return (
-    <main role="main" style={{ padding: '2rem', backgroundColor: 'var(--paper)', minHeight: '100svh' }}>
+    <main
+      role="main"
+      style={{ padding: 'var(--space-xl)', backgroundColor: 'var(--bg)', minHeight: '100svh' }}
+    >
       <div style={{ maxWidth: '900px', margin: '0 auto' }}>
         <h1
           style={{
             fontFamily: 'var(--font-display)',
-            fontSize: 'var(--text-h1)',
+            fontSize: 'var(--text-hero)',
             fontWeight: 700,
-            textTransform: 'uppercase',
             color: 'var(--ink)',
-            marginBottom: '2rem',
+            marginBottom: 'var(--space-xl)',
+            lineHeight: '38px',
           }}
         >
           Profile
@@ -112,23 +117,22 @@ export default function ProfilePage() {
           style={{
             display: 'grid',
             gridTemplateColumns: '1fr 2fr',
-            gap: '3rem',
+            gap: 'var(--space-xl)',
           }}
         >
           {/* Left rail: avatar + read-only info */}
           <div>
-            {/* Avatar placeholder */}
             <div
               style={{
                 width: '100%',
                 aspectRatio: '1',
                 maxWidth: '160px',
-                backgroundColor: 'var(--line)',
+                backgroundColor: 'var(--border-soft)',
                 borderRadius: 'var(--radius-md)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                marginBottom: '1.5rem',
+                marginBottom: 'var(--space-lg)',
               }}
               aria-label="Profile photo"
             >
@@ -136,35 +140,50 @@ export default function ProfilePage() {
                 <img
                   src={profile.photoUrl}
                   alt="Profile"
-                  style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'inherit' }}
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    objectFit: 'cover',
+                    borderRadius: 'inherit',
+                  }}
                 />
               ) : (
-                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--text-label)', color: 'var(--muted)' }}>
+                <span
+                  style={{
+                    fontFamily: 'var(--font-body)',
+                    fontSize: 'var(--text-eyebrow)',
+                    fontWeight: 600,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.06em',
+                    color: 'var(--muted)',
+                  }}
+                >
                   NO PHOTO
                 </span>
               )}
             </div>
 
             {/* Read-only locked rows */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>
               <div>
                 <div
                   style={{
-                    fontFamily: 'var(--font-mono)',
-                    fontSize: 'var(--text-label)',
+                    fontFamily: 'var(--font-body)',
+                    fontSize: 'var(--text-eyebrow)',
                     textTransform: 'uppercase',
-                    letterSpacing: '0.08em',
+                    letterSpacing: '0.06em',
+                    fontWeight: 600,
                     color: 'var(--muted)',
-                    marginBottom: '0.125rem',
+                    marginBottom: '2px',
                   }}
                 >
                   Email
                 </div>
                 <div
                   style={{
-                    fontFamily: 'var(--font-mono)',
-                    fontSize: 'var(--text-sm)',
-                    color: 'var(--ink-2)',
+                    fontFamily: 'var(--font-body)',
+                    fontSize: 'var(--text-body)',
+                    color: 'var(--text-secondary)',
                   }}
                   aria-label="Email (read-only)"
                 >
@@ -174,21 +193,22 @@ export default function ProfilePage() {
               <div>
                 <div
                   style={{
-                    fontFamily: 'var(--font-mono)',
-                    fontSize: 'var(--text-label)',
+                    fontFamily: 'var(--font-body)',
+                    fontSize: 'var(--text-eyebrow)',
                     textTransform: 'uppercase',
-                    letterSpacing: '0.08em',
+                    letterSpacing: '0.06em',
+                    fontWeight: 600,
                     color: 'var(--muted)',
-                    marginBottom: '0.125rem',
+                    marginBottom: '2px',
                   }}
                 >
                   Role
                 </div>
                 <div
                   style={{
-                    fontFamily: 'var(--font-mono)',
-                    fontSize: 'var(--text-sm)',
-                    color: 'var(--ink-2)',
+                    fontFamily: 'var(--font-body)',
+                    fontSize: 'var(--text-body)',
+                    color: 'var(--text-secondary)',
                   }}
                 >
                   {role}
@@ -204,22 +224,32 @@ export default function ProfilePage() {
                 aria-live="polite"
                 role="status"
                 style={{
-                  marginBottom: '1rem',
-                  padding: '0.75rem',
+                  marginBottom: 'var(--space-md)',
+                  padding: 'var(--space-sm) var(--space-md)',
                   backgroundColor: 'rgba(30,122,77,0.08)',
                   border: '1px solid var(--success)',
-                  borderRadius: 'var(--radius-md)',
+                  borderRadius: 'var(--radius-sm)',
                   color: 'var(--success)',
-                  fontFamily: 'var(--font-mono)',
-                  fontSize: 'var(--text-sm)',
+                  fontFamily: 'var(--font-body)',
+                  fontSize: 'var(--text-body)',
                 }}
               >
                 {saveMessage}
               </div>
             )}
 
-            <form onSubmit={handleSubmit(onSubmit)} noValidate style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+            <form
+              onSubmit={handleSubmit(onSubmit)}
+              noValidate
+              style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}
+            >
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: '1fr 1fr',
+                  gap: 'var(--space-md)',
+                }}
+              >
                 <Input
                   id="firstName"
                   label="First Name"
@@ -233,14 +263,8 @@ export default function ProfilePage() {
                 />
               </div>
 
-              <Input
-                id="phone"
-                label="Phone"
-                type="tel"
-                {...register('phone')}
-              />
+              <Input id="phone" label="Phone" type="tel" {...register('phone')} />
 
-              {/* Coach-specific fields */}
               {role === 'COACH' && (
                 <>
                   <div>
@@ -248,12 +272,11 @@ export default function ProfilePage() {
                       htmlFor="bio"
                       style={{
                         display: 'block',
-                        fontFamily: 'var(--font-mono)',
-                        fontSize: 'var(--text-label)',
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.08em',
-                        color: 'var(--muted)',
-                        marginBottom: '0.25rem',
+                        fontFamily: 'var(--font-body)',
+                        fontSize: 'var(--text-caption)',
+                        fontWeight: 600,
+                        color: 'var(--text-secondary)',
+                        marginBottom: '0.375rem',
                       }}
                     >
                       Bio
@@ -266,11 +289,12 @@ export default function ProfilePage() {
                         fontFamily: 'var(--font-body)',
                         fontSize: 'var(--text-body)',
                         color: 'var(--ink)',
-                        backgroundColor: 'transparent',
-                        border: '1px solid var(--line)',
+                        backgroundColor: 'var(--surface)',
+                        border: '1px solid var(--border-soft)',
                         borderRadius: 'var(--radius-sm)',
-                        padding: '0.5rem',
+                        padding: 'var(--space-xs) 10px',
                         resize: 'vertical',
+                        outline: 'none',
                       }}
                       {...register('bio')}
                     />
@@ -280,15 +304,15 @@ export default function ProfilePage() {
                     label="Credentials"
                     {...register('credentials')}
                   />
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <input
-                      type="checkbox"
-                      id="publicProfile"
-                      {...register('publicProfile')}
-                    />
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-xs)' }}>
+                    <input type="checkbox" id="publicProfile" {...register('publicProfile')} />
                     <label
                       htmlFor="publicProfile"
-                      style={{ fontFamily: 'var(--font-body)', fontSize: 'var(--text-sm)', color: 'var(--ink)' }}
+                      style={{
+                        fontFamily: 'var(--font-body)',
+                        fontSize: 'var(--text-body)',
+                        color: 'var(--text-primary)',
+                      }}
                     >
                       Public profile
                     </label>
@@ -296,14 +320,9 @@ export default function ProfilePage() {
                 </>
               )}
 
-              {/* Player-specific fields */}
               {role === 'PLAYER' && (
                 <>
-                  <Input
-                    id="school"
-                    label="School"
-                    {...register('school')}
-                  />
+                  <Input id="school" label="School" {...register('school')} />
                   <Input
                     id="jerseyNumber"
                     label="Jersey Number"
@@ -312,7 +331,6 @@ export default function ProfilePage() {
                 </>
               )}
 
-              {/* Parent emergency contact */}
               {role === 'PLAYER' && !me?.isChild && (
                 <Input
                   id="emergencyContact"
@@ -322,11 +340,7 @@ export default function ProfilePage() {
               )}
 
               <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                <Button
-                  type="submit"
-                  loading={updateMutation.isPending}
-                  disabled={!isDirty}
-                >
+                <Button type="submit" loading={updateMutation.isPending} disabled={!isDirty}>
                   Save
                 </Button>
               </div>

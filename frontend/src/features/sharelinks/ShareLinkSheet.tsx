@@ -1,3 +1,7 @@
+/**
+ * PracticePerfect ShareLinkSheet.
+ * Updated to use PracticePerfect design tokens (removed --line, --paper, --ink-2, --font-mono).
+ */
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Sheet } from '@/components/ui/Sheet';
@@ -46,7 +50,6 @@ export function ShareLinkSheet({ isOpen, onClose }: ShareLinkSheetProps) {
 
   const links = (data?.data ?? []) as ShareLinkDto[];
   const activeTypeLinks = links.filter((l) => l.type === activeType);
-  // Explicit boolean comparison to avoid string "false" coercion issues
   const activeLink = activeTypeLinks.find((l) => l.active === true);
   const revokedLinks = activeTypeLinks.filter((l) => l.active !== true);
 
@@ -77,11 +80,11 @@ export function ShareLinkSheet({ isOpen, onClose }: ShareLinkSheetProps) {
         style={{
           display: 'flex',
           gap: '0.25rem',
-          marginBottom: '1.5rem',
-          border: '1px solid var(--line)',
+          marginBottom: 'var(--space-lg)',
+          border: '1px solid var(--border-soft)',
           borderRadius: 'var(--radius-sm)',
           padding: '0.25rem',
-          backgroundColor: 'var(--paper)',
+          backgroundColor: 'var(--bg)',
         }}
       >
         {(['STATIC', 'UNIQUE'] as LinkType[]).map((type) => (
@@ -92,11 +95,11 @@ export function ShareLinkSheet({ isOpen, onClose }: ShareLinkSheetProps) {
             aria-label={type}
             style={{
               flex: 1,
-              padding: '0.5rem',
-              fontFamily: 'var(--font-mono)',
-              fontSize: 'var(--text-label)',
+              padding: 'var(--space-xs)',
+              fontFamily: 'var(--font-body)',
+              fontSize: 'var(--text-eyebrow)',
               textTransform: 'uppercase',
-              letterSpacing: '0.08em',
+              letterSpacing: '0.06em',
               fontWeight: 700,
               backgroundColor: activeType === type ? 'var(--ink)' : 'transparent',
               color: activeType === type ? 'var(--surface)' : 'var(--muted)',
@@ -113,10 +116,11 @@ export function ShareLinkSheet({ isOpen, onClose }: ShareLinkSheetProps) {
       {/* Type description */}
       <p
         style={{
-          fontFamily: 'var(--font-mono)',
-          fontSize: 'var(--text-sm)',
+          fontFamily: 'var(--font-body)',
+          fontSize: 'var(--text-body)',
           color: 'var(--muted)',
-          marginBottom: '1.5rem',
+          marginBottom: 'var(--space-lg)',
+          lineHeight: '22px',
         }}
       >
         {activeType === 'STATIC'
@@ -125,29 +129,36 @@ export function ShareLinkSheet({ isOpen, onClose }: ShareLinkSheetProps) {
       </p>
 
       {isLoading ? (
-        <div aria-busy="true" style={{ color: 'var(--muted)', fontFamily: 'var(--font-mono)', fontSize: 'var(--text-sm)' }}>
+        <div
+          aria-busy="true"
+          style={{
+            color: 'var(--muted)',
+            fontFamily: 'var(--font-body)',
+            fontSize: 'var(--text-body)',
+          }}
+        >
           Loading…
         </div>
       ) : activeLink ? (
         /* Active link display */
         <div
           style={{
-            backgroundColor: 'var(--paper)',
-            border: '1px solid var(--line)',
+            backgroundColor: 'var(--bg)',
+            border: '1px solid var(--border-soft)',
             borderRadius: 'var(--radius-md)',
-            padding: '1.25rem',
-            marginBottom: '1.5rem',
+            padding: 'var(--space-md)',
+            marginBottom: 'var(--space-lg)',
           }}
         >
-          {/* Mono code */}
+          {/* Code display */}
           <div
             style={{
               fontFamily: 'var(--font-mono)',
-              fontSize: 'var(--text-h3)',
+              fontSize: 'var(--text-block)',
               fontWeight: 700,
               color: 'var(--ink)',
-              letterSpacing: '0.08em',
-              marginBottom: '0.75rem',
+              letterSpacing: '0.06em',
+              marginBottom: 'var(--space-sm)',
             }}
           >
             {copiedCode === activeLink.code ? 'COPIED' : activeLink.code}
@@ -157,10 +168,10 @@ export function ShareLinkSheet({ isOpen, onClose }: ShareLinkSheetProps) {
           <div
             style={{
               fontFamily: 'var(--font-mono)',
-              fontSize: 'var(--text-sm)',
+              fontSize: 'var(--text-body)',
               color: 'var(--muted)',
               wordBreak: 'break-all',
-              marginBottom: '1rem',
+              marginBottom: 'var(--space-md)',
             }}
           >
             {activeLink.url}
@@ -168,17 +179,24 @@ export function ShareLinkSheet({ isOpen, onClose }: ShareLinkSheetProps) {
 
           {/* Usage stat */}
           {activeType === 'STATIC' && (
-            <div style={{ marginBottom: '1rem' }}>
+            <div style={{ marginBottom: 'var(--space-md)' }}>
               <StatNumber value={activeLink.useCount} label="Uses" />
             </div>
           )}
 
           {/* Unique link metadata */}
           {activeType === 'UNIQUE' && activeLink.targetEmail && (
-            <div style={{ marginBottom: '1rem', fontFamily: 'var(--font-mono)', fontSize: 'var(--text-sm)', color: 'var(--ink-2)' }}>
+            <div
+              style={{
+                marginBottom: 'var(--space-md)',
+                fontFamily: 'var(--font-body)',
+                fontSize: 'var(--text-body)',
+                color: 'var(--text-secondary)',
+              }}
+            >
               Sent to: {activeLink.targetEmail}
               {activeLink.expiresAt && (
-                <span style={{ marginLeft: '0.5rem', color: 'var(--muted)' }}>
+                <span style={{ marginLeft: 'var(--space-xs)', color: 'var(--muted)' }}>
                   · expires {new Date(activeLink.expiresAt).toLocaleDateString()}
                 </span>
               )}
@@ -186,7 +204,7 @@ export function ShareLinkSheet({ isOpen, onClose }: ShareLinkSheetProps) {
           )}
 
           {/* Actions */}
-          <div style={{ display: 'flex', gap: '0.5rem' }}>
+          <div style={{ display: 'flex', gap: 'var(--space-xs)' }}>
             <Button
               variant="ghost"
               size="sm"
@@ -208,17 +226,16 @@ export function ShareLinkSheet({ isOpen, onClose }: ShareLinkSheetProps) {
         </div>
       ) : (
         /* No active link — create form */
-        <div style={{ marginBottom: '1.5rem' }}>
-          {/* Show revoked notice if prior links exist */}
+        <div style={{ marginBottom: 'var(--space-lg)' }}>
           {revokedLinks.length > 0 && (
             <div
               style={{
-                marginBottom: '1rem',
-                padding: '0.5rem 0.75rem',
-                backgroundColor: 'rgba(138,141,150,0.1)',
+                marginBottom: 'var(--space-md)',
+                padding: 'var(--space-xs) var(--space-sm)',
+                backgroundColor: 'rgba(134,134,134,0.1)',
                 borderRadius: 'var(--radius-sm)',
-                fontFamily: 'var(--font-mono)',
-                fontSize: 'var(--text-sm)',
+                fontFamily: 'var(--font-body)',
+                fontSize: 'var(--text-body)',
                 color: 'var(--muted)',
                 textDecoration: 'line-through',
               }}
@@ -228,7 +245,7 @@ export function ShareLinkSheet({ isOpen, onClose }: ShareLinkSheetProps) {
             </div>
           )}
           {activeType === 'UNIQUE' && (
-            <div style={{ marginBottom: '1rem' }}>
+            <div style={{ marginBottom: 'var(--space-md)' }}>
               <Input
                 id="targetEmail"
                 label="Recipient Email"
@@ -253,14 +270,15 @@ export function ShareLinkSheet({ isOpen, onClose }: ShareLinkSheetProps) {
         <div>
           <div
             style={{
-              fontFamily: 'var(--font-mono)',
-              fontSize: 'var(--text-label)',
+              fontFamily: 'var(--font-body)',
+              fontSize: 'var(--text-eyebrow)',
               textTransform: 'uppercase',
-              letterSpacing: '0.08em',
+              letterSpacing: '0.06em',
+              fontWeight: 600,
               color: 'var(--muted)',
-              marginBottom: '0.5rem',
-              borderTop: '1px solid var(--line)',
-              paddingTop: '1rem',
+              marginBottom: 'var(--space-xs)',
+              borderTop: '1px solid var(--border-soft)',
+              paddingTop: 'var(--space-md)',
             }}
           >
             Revoked
@@ -269,8 +287,8 @@ export function ShareLinkSheet({ isOpen, onClose }: ShareLinkSheetProps) {
             <div
               key={link.id}
               style={{
-                fontFamily: 'var(--font-mono)',
-                fontSize: 'var(--text-sm)',
+                fontFamily: 'var(--font-body)',
+                fontSize: 'var(--text-body)',
                 color: 'var(--muted)',
                 textDecoration: 'line-through',
                 padding: '0.25rem 0',
