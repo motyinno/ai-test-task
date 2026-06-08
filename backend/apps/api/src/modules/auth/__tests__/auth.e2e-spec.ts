@@ -35,7 +35,9 @@ describe('Auth (e2e)', () => {
   });
 
   beforeEach(async () => {
-    await userRepo.clear();
+    await userRepo.query('DELETE FROM password_reset_tokens');
+    await userRepo.query('DELETE FROM email_verification_tokens');
+    await userRepo.query('DELETE FROM users');
   });
 
   async function createUser(overrides: Partial<User> = {}): Promise<User> {

@@ -29,7 +29,9 @@ describe('Auth Rate Limiting (e2e)', () => {
     userRepo = moduleFixture.get(getRepositoryToken(User));
     passwordService = moduleFixture.get(PasswordService);
 
-    await userRepo.clear();
+    await userRepo.query('DELETE FROM password_reset_tokens');
+    await userRepo.query('DELETE FROM email_verification_tokens');
+    await userRepo.query('DELETE FROM users');
     const hash = await passwordService.hash('password123');
     await userRepo.save(
       userRepo.create({

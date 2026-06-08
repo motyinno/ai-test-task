@@ -21,7 +21,8 @@ describe('User entity', () => {
   });
 
   beforeEach(async () => {
-    await repo.clear();
+    // Use query to handle FK constraints; cascade will handle child rows
+    await repo.query('DELETE FROM users');
   });
 
   it('has required columns via entity metadata', () => {
