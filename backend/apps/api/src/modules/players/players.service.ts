@@ -2,6 +2,7 @@ import {
   Injectable,
   ConflictException,
   ForbiddenException,
+  GoneException,
   Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -247,7 +248,8 @@ export class PlayersService {
 
   /**
    * Handle UNIQUE link (coach invite) acceptance.
-   * Atomic: consume the link + create/link CoachProfile in one transaction.
+   * Atomic: consume the link + create User (if anonymous) + create/link CoachProfile
+   * all in ONE transaction. If consume fails, the whole tx rolls back — no orphan users.
    * BR-006: coach can only be ACTIVE under one trainer at a time.
    */
   private async handleCoachAcceptance(
@@ -256,62 +258,88 @@ export class PlayersService {
     ctx: JoinContext,
     code: string,
   ): Promise<JoinResult> {
-    // BR-006: if this is an existing user, check they're not already active elsewhere
-    let userId: string;
+    // Pre-hash password outside tx (expensive, avoid repeating inside tx)
+    let passwordHash: string | undefined;
+    let existingUserId: string | undefined;
 
-    if (ctx.principalId) {
-      userId = ctx.principalId;
-    } else {
-      // Anonymous accepting coach invite — create user first (outside tx for email dedup check)
-      const existing = await this.usersRepo.findByEmail(dto.email);
-      if (existing) {
-        userId = existing.id;
+    if (!ctx.principalId) {
+      // Anonymous: check if email already exists
+      const existingUser = await this.usersRepo.findByEmail(dto.email!);
+      if (existingUser) {
+        existingUserId = existingUser.id;
       } else {
-        const passwordHash = await this.passwordService.hash(dto.password);
-        const user = await this.userRepo.save(this.userRepo.create({
-          email: dto.email,
-          passwordHash,
-          role: UserRole.COACH,
-          status: UserStatus.ACTIVE,
-          emailVerified: false,
-        }));
-        userId = user.id;
+        if (!dto.password) {
+          throw new ConflictException({ message: 'password is required', errorCode: 'VALIDATION_ERROR' });
+        }
+        passwordHash = await this.passwordService.hash(dto.password);
       }
     }
 
-    // BR-006: single-trainer guard
-    const existingCoachProfile = await this.coachProfileRepo.findOne({ where: { userId } });
-    if (existingCoachProfile && existingCoachProfile.trainerId !== link.trainerId) {
-      throw new ConflictException({
-        message: 'Coach is already active under another trainer',
-        errorCode: 'COACH_ALREADY_ACTIVE_ELSEWHERE',
-      });
+    // Pre-check BR-006 for existing users (before entering tx, fast path)
+    const checkUserId = ctx.principalId ?? existingUserId;
+    if (checkUserId) {
+      const existingCoachProfile = await this.coachProfileRepo.findOne({ where: { userId: checkUserId } });
+      if (existingCoachProfile && existingCoachProfile.trainerId !== link.trainerId) {
+        throw new ConflictException({
+          message: 'Coach is already active under another trainer',
+          errorCode: 'COACH_ALREADY_ACTIVE_ELSEWHERE',
+        });
+      }
     }
 
-    // Atomic consume + create/update CoachProfile
-    const coachProfileId = await this.dataSource.transaction(async (em) => {
-      // Atomic single-use consume (C9)
+    // Atomic: consume link + (create user if anonymous) + create/update CoachProfile
+    const { userId, coachProfileId } = await this.dataSource.transaction(async (em) => {
+      // Step 1: Atomic single-use consume (C9): conditional UPDATE where use_count < max_uses
       const consumed = await this.shareLinksRepo.consumeUnique(em, code);
       if (!consumed) {
-        throw new ConflictException({
+        throw new GoneException({
           message: 'Link has already been used',
           errorCode: 'LINK_USED',
         });
       }
 
-      // Create or update CoachProfile
-      const existing = await em.findOne(CoachProfile, { where: { userId } });
-      if (existing) {
-        existing.trainerId = link.trainerId;
-        await em.save(CoachProfile, existing);
-        return existing.id;
+      // Step 2: Resolve user ID (create new user if anonymous)
+      let resolvedUserId: string;
+      if (ctx.principalId) {
+        resolvedUserId = ctx.principalId;
+      } else if (existingUserId) {
+        resolvedUserId = existingUserId;
+      } else {
+        // Create new coach user inside the transaction (atomic with consume)
+        const newUser = await em.save(User, em.create(User, {
+          email: dto.email!,
+          passwordHash: passwordHash!,
+          role: UserRole.COACH,
+          status: UserStatus.ACTIVE,
+          emailVerified: false,
+        }));
+        resolvedUserId = newUser.id;
+      }
+
+      // Step 3: BR-006 re-check inside tx for newly-created users (race safety)
+      const coachProfileInTx = await em.findOne(CoachProfile, { where: { userId: resolvedUserId } });
+      if (coachProfileInTx && coachProfileInTx.trainerId !== link.trainerId) {
+        throw new ConflictException({
+          message: 'Coach is already active under another trainer',
+          errorCode: 'COACH_ALREADY_ACTIVE_ELSEWHERE',
+        });
+      }
+
+      // Step 4: Create or update CoachProfile
+      let profileId: string;
+      if (coachProfileInTx) {
+        coachProfileInTx.trainerId = link.trainerId;
+        await em.save(CoachProfile, coachProfileInTx);
+        profileId = coachProfileInTx.id;
       } else {
         const profile = await em.save(CoachProfile, em.create(CoachProfile, {
-          userId,
+          userId: resolvedUserId,
           trainerId: link.trainerId,
         }));
-        return profile.id;
+        profileId = profile.id;
       }
+
+      return { userId: resolvedUserId, coachProfileId: profileId };
     });
 
     return { alreadyAssociated: false, userId, coachProfileId };
