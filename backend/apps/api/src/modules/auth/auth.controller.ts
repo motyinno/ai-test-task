@@ -8,6 +8,7 @@ import {
   HttpCode,
   UnauthorizedException,
 } from '@nestjs/common';
+import * as crypto from 'crypto';
 import { ApiTags, ApiCookieAuth } from '@nestjs/swagger';
 import type { Request } from 'express';
 import 'express-session';
@@ -80,11 +81,6 @@ export class AuthController {
   }
 
   private generateToken(): string {
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-    let result = '';
-    for (let i = 0; i < 32; i++) {
-      result += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    return result;
+    return crypto.randomBytes(24).toString('base64url');
   }
 }

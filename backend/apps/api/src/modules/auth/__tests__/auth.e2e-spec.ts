@@ -109,10 +109,17 @@ describe('Auth (e2e)', () => {
     )!;
     const sidPart = sidCookie.split(';')[0];
 
-    // Logout (CSRF exempt for now — login/logout are standard public ops)
+    // Get CSRF token first
+    const csrfRes = await request(app.getHttpServer())
+      .get('/api/v1/auth/csrf')
+      .set('Cookie', sidPart);
+    const csrfToken = csrfRes.body.token;
+
+    // Logout with CSRF token
     await request(app.getHttpServer())
       .post('/api/v1/auth/logout')
       .set('Cookie', sidPart)
+      .set('X-CSRF-Token', csrfToken)
       .expect(200);
 
     // Subsequent /me should fail
