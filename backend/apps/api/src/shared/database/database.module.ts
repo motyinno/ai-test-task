@@ -14,7 +14,7 @@ import { ConfigModule } from '../config/config.module';
         url: configService.getOrThrow<string>('DATABASE_URL'),
         autoLoadEntities: true,
         synchronize: process.env.NODE_ENV === 'test',
-        migrations: ['dist/database/migrations/*.js'],
+        migrations: ['dist/apps/api/src/shared/database/migrations/*.js'],
         migrationsTableName: 'typeorm_migrations',
         logging: process.env.NODE_ENV === 'development',
       }),

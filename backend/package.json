@@ -8,7 +8,9 @@
     "start": "nx serve api",
     "build": "nx build api",
     "test": "nx test api --maxWorkers=1",
-    "lint": "nx lint"
+    "lint": "nx lint",
+    "migration:run": "node apps/api/src/shared/database/run-migrations.mjs",
+    "migration:revert": "echo 'Use run-migrations.mjs DOWN_QUERIES manually or restore a backup'"
   },
   "devDependencies": {
     "@nestjs/schematics": "^11.0.0",
