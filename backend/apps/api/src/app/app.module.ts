@@ -10,6 +10,7 @@ import { TenancyModule } from '../shared/tenancy/tenancy.module';
 import { TenantMiddleware } from '../shared/tenancy/tenant.middleware';
 import { CsrfMiddleware } from '../shared/security/csrf.middleware';
 import { AuthModule } from '../modules/auth/auth.module';
+import { UsersModule } from '../modules/users/users.module';
 import { HealthController } from '../shared/health/health.controller';
 import { SessionTestController } from '../shared/session/session-test.controller';
 
@@ -22,6 +23,7 @@ const testControllers =
     DatabaseModule,
     TenancyModule,
     AuthModule,
+    UsersModule,
     AuthzModule,
     ThrottlerModule.forRoot([
       {
