@@ -5,3 +5,4 @@ coverage/
 .nx/workspace-data/
 *.env
 !.env.test
+uploads/
