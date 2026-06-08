@@ -1,0 +1,95 @@
+/* =========================================================
+   Editorial Athletic — Design Tokens
+   All colour/spacing tokens as CSS custom properties.
+   Tailwind reads these via theme extension in vite.config.
+   ========================================================= */
+
+/* --- Fontshare self-hosted fonts --- */
+@font-face {
+  font-family: 'Clash Display';
+  src: url('../assets/fonts/ClashDisplay-Variable.woff2') format('woff2');
+  font-weight: 100 900;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Satoshi';
+  src: url('../assets/fonts/Satoshi-Variable.woff2') format('woff2');
+  font-weight: 100 900;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Martian Mono';
+  src: url('../assets/fonts/MartianMono-VariableFont_wdth,wght.woff2') format('woff2');
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+:root {
+  /* === Canvas === */
+  --paper:   #F7F4EE;   /* app background — warm editorial, NOT pure #fff */
+  --surface: #FFFFFF;   /* cards / sheets */
+  --ink:     #14151A;   /* primary text (warm near-black) */
+  --ink-2:   #3A3D45;   /* secondary text */
+  --muted:   #8A8D96;   /* tertiary / placeholders */
+  --line:    #E6E1D7;   /* hairlines, dividers, table rules */
+
+  /* === Dynamic white-label brand ===
+     Overridden per trainer org via BrandProvider.
+     Defaults to platform ink-blue when no trainer context. */
+  --brand:        #1B3A5B;
+  --brand-tint:   color-mix(in oklab, var(--brand) 12%, var(--surface));
+  --brand-strong: color-mix(in oklab, var(--brand) 80%, black);
+  --on-brand:     #FFFFFF; /* contrast-checked at runtime */
+
+  /* === Fixed semantics (outside typical trainer-brand space) === */
+  --hazard:  #FF5A1F;   /* impersonation banner ONLY */
+  --success: #1E7A4D;
+  --danger:  #C42B2B;
+  --warning: #B7791F;
+  --info:    #2563A8;
+
+  /* === Elevation === */
+  --shadow-card: 0 1px 0 var(--line), 0 12px 28px -18px rgba(20,21,26,0.25);
+
+  /* === Kinetic motif === */
+  --speed-angle: -18deg;
+
+  /* === Spacing scale (4px base) === */
+  --space-1:  0.25rem;  /* 4px */
+  --space-2:  0.5rem;   /* 8px */
+  --space-3:  0.75rem;  /* 12px */
+  --space-4:  1rem;     /* 16px */
+  --space-6:  1.5rem;   /* 24px */
+  --space-10: 2.5rem;   /* 40px */
+  --space-16: 4rem;     /* 64px */
+  --space-24: 6rem;     /* 96px */
+
+  /* === Typography === */
+  --font-display: 'Clash Display', sans-serif;
+  --font-body:    'Satoshi', sans-serif;
+  --font-mono:    'Martian Mono', monospace;
+
+  --text-stat:  clamp(3rem, 6vw, 5.5rem);
+  --text-h1:    clamp(2rem, 4vw, 3rem);
+  --text-h2:    1.75rem;
+  --text-h3:    1.25rem;
+  --text-body:  1rem;
+  --text-sm:    0.875rem;
+  --text-label: 0.75rem;
+
+  /* === Radius === */
+  --radius-sm: 4px;
+  --radius-md: 6px;   /* square-ish — editorial, not pill */
+  --radius-lg: 8px;
+}
+
+/* === Dark mode === */
+[data-theme="dark"] {
+  --paper:   #101216;
+  --surface: #181B21;
+  --ink:     #F2EFE9;
+  --ink-2:   #B9BCC4;
+  --muted:   #767A84;
+  --line:    #262A31;
+  --brand-tint: color-mix(in oklab, var(--brand) 22%, var(--surface));
+}
