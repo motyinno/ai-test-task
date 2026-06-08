@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import { Request } from 'express';
+import 'express-session'; // augments Request with .session
+import type { Request } from 'express';
 import { SessionPrincipal } from './strategies/local.strategy';
 
 export interface ActiveContext {
