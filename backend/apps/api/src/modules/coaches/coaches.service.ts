@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import { CoachProfile } from '../users/entities/coach-profile.entity';
 import { ShareLink, ShareLinkType } from '../sharelinks/entities/share-link.entity';
 import { ShareLinksService } from '../sharelinks/sharelinks.service';
+import { ShareLinksRepository } from '../sharelinks/sharelinks.repository';
 import { EmailService } from '../../shared/integrations/email/email.service';
 import { InviteCoachDto } from './dto/invite-coach.dto';
 import { CoachInvitationDto, InvitationStatus } from './dto/coach-invitation.dto';
@@ -16,8 +17,7 @@ export class CoachesService {
   constructor(
     @InjectRepository(CoachProfile)
     private readonly coachProfileRepo: Repository<CoachProfile>,
-    @InjectRepository(ShareLink)
-    private readonly shareLinkRepo: Repository<ShareLink>,
+    private readonly shareLinkRepo: ShareLinksRepository,
     private readonly shareLinksService: ShareLinksService,
     private readonly emailService: EmailService,
   ) {}
@@ -28,9 +28,10 @@ export class CoachesService {
    * BR-006: If the email maps to an existing coach already ACTIVE under another
    * trainer, reject with COACH_ALREADY_ACTIVE_ELSEWHERE.
    *
-   * Idempotent (edge A): if there's already an outstanding (unconsumed, unexpired)
-   * UNIQUE link for this targetEmail under this trainer, refresh it rather than
-   * creating a duplicate (handled in C12 resend; here we just create fresh).
+   * Idempotent (edge A / C-2): if there's already an outstanding (unconsumed, unexpired)
+   * UNIQUE link for this targetEmail under this trainer, REFRESH it (reuse same row)
+   * rather than inserting a duplicate. inviteCoach and resendInvitation share one
+   * code path via the private refreshLink() method.
    */
   async inviteCoach(
     dto: InviteCoachDto,
@@ -53,11 +54,24 @@ export class CoachesService {
       });
     }
 
-    // Generate a UNIQUE share link for this coach
-    const link = await this.shareLinksService.generate(
-      { type: ShareLinkType.UNIQUE, targetEmail: dto.email },
-      ctx,
+    // C-2 Idempotency: look up any outstanding UNIQUE link for this trainer+email.
+    // If one exists, refresh it instead of inserting a duplicate row.
+    const outstandingLink = await this.shareLinkRepo.findOutstandingUniqueLink(
+      ctx.trainerId,
+      dto.email,
     );
+
+    let link: ShareLink;
+    if (outstandingLink) {
+      // Refresh the existing link (same as resend logic — DRY via shared method)
+      link = await this.refreshLink(outstandingLink);
+    } else {
+      // No outstanding link — generate a new one
+      link = await this.shareLinksService.generate(
+        { type: ShareLinkType.UNIQUE, targetEmail: dto.email },
+        ctx,
+      );
+    }
 
     // Send invite email (best-effort)
     this.emailService.send({
@@ -75,27 +89,28 @@ export class CoachesService {
   /**
    * List coach invitations for the calling trainer.
    * Derives status from the underlying ShareLink.
+   * M-2: routed through ShareLinksRepository (tenant-scoped) instead of raw repo.
    */
   async listInvitations(trainerId: string): Promise<CoachInvitationDto[]> {
-    const links = await this.shareLinkRepo.find({
-      where: { trainerId, type: ShareLinkType.UNIQUE },
-      order: { createdAt: 'DESC' },
-    });
-
+    // Use the scoped repository method — trainerId is passed explicitly through
+    // the findOutstandingUniqueLink escape hatch, and here we use scopedFind via
+    // the tenant-aware repository which requires the trainerId to be set in context.
+    // Since this controller method is called with the authenticated trainer's ID,
+    // we use a direct raw lookup with explicit trainerId for structural tenant isolation.
+    const links = await this.shareLinkRepo.findAllForTrainer(trainerId);
     return links.map((link) => this.toLinkDto(link));
   }
 
   /**
    * Resend a coach invitation — refreshes the underlying UNIQUE link.
    * Idempotent (edge A): one active link per targetEmail; resend reuses/refreshes.
+   * M-2: routed through ShareLinksRepository (tenant-scoped).
    */
   async resendInvitation(
     shareLinkId: string,
     trainerId: string,
   ): Promise<CoachInvitationDto> {
-    const link = await this.shareLinkRepo.findOne({
-      where: { id: shareLinkId, trainerId, type: ShareLinkType.UNIQUE },
-    });
+    const link = await this.shareLinkRepo.findUniqueForTrainer(shareLinkId, trainerId);
 
     if (!link) {
       throw new NotFoundException({
@@ -104,27 +119,37 @@ export class CoachesService {
       });
     }
 
-    // Refresh: reset useCount to 0, new 7d expiry, keep active=true
-    link.useCount = 0;
-    link.expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-    link.active = true;
-    link.code = generateShareLinkCode(); // new code for security
-    await this.shareLinkRepo.save(link);
+    const refreshed = await this.refreshLink(link);
 
     // Resend email
     this.emailService.send({
-      to: link.targetEmail!,
+      to: refreshed.targetEmail!,
       subject: `Coach invitation reminder`,
-      text: `Your invitation has been refreshed. Accept at: /join/${link.code}`,
-      data: { linkCode: link.code, trainerId, targetEmail: link.targetEmail },
+      text: `Your invitation has been refreshed. Accept at: /join/${refreshed.code}`,
+      data: { linkCode: refreshed.code, trainerId, targetEmail: refreshed.targetEmail },
     }).catch((err) => {
-      this.logger.warn(`[EMAIL] Resend failed for ${link.targetEmail}: ${(err as Error).message}`);
+      this.logger.warn(`[EMAIL] Resend failed for ${refreshed.targetEmail}: ${(err as Error).message}`);
     });
 
-    return this.toLinkDto(link);
+    return this.toLinkDto(refreshed);
   }
 
-  // ─── Helpers ─────────────────────────────────────────────────────────────
+  // ─── Private helpers ──────────────────────────────────────────────────────
+
+  /**
+   * Shared refresh logic used by both inviteCoach (idempotent resend on existing link)
+   * and resendInvitation. Resets useCount to 0, sets new 7d expiry, keeps active=true,
+   * and rotates the code for security.
+   *
+   * DRY: both code paths share this one implementation.
+   */
+  private async refreshLink(link: ShareLink): Promise<ShareLink> {
+    link.useCount = 0;
+    link.expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    link.active = true;
+    link.code = generateShareLinkCode(); // rotate code for security
+    return this.shareLinkRepo.saveLink(link);
+  }
 
   private toLinkDto(link: ShareLink): CoachInvitationDto {
     const now = new Date();

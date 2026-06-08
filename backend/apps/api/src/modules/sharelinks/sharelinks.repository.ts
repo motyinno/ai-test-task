@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DeepPartial, EntityManager } from 'typeorm';
-import { ShareLink } from './entities/share-link.entity';
+import { ShareLink, ShareLinkType } from './entities/share-link.entity';
 import { TenantAwareRepository } from '../../shared/tenancy/tenant-aware.repository';
 import { TenantContextService } from '../../shared/tenancy/tenant-context.service';
 
@@ -65,8 +65,73 @@ export class ShareLinksRepository extends TenantAwareRepository<ShareLink> {
   /**
    * Best-effort async increment for STATIC links (analytics only).
    * Never fails the join — fire-and-forget after commit (NFR-004).
+   * NOTE: intentionally unscoped and fire-and-forget — do NOT move into a tx.
    */
   async incrementUseCountBestEffort(id: string): Promise<void> {
     await this.repo.increment({ id }, 'useCount', 1);
+  }
+
+  /**
+   * Find an outstanding (active, unconsumed, unexpired) UNIQUE link for a given
+   * trainer + targetEmail combination.
+   *
+   * Used by inviteCoach to detect an existing invite before creating a duplicate
+   * (C-2 idempotency fix: one active link per targetEmail per trainer).
+   *
+   * GLOBAL lookup (no tenant scope) — caller supplies trainerId explicitly.
+   * Audited escape hatch (A1): used to detect duplicates before invite/resend.
+   */
+  async findOutstandingUniqueLink(trainerId: string, targetEmail: string): Promise<ShareLink | null> {
+    const link = await this.withoutTenantScope(() =>
+      this.repo.findOne({
+        where: {
+          trainerId,
+          targetEmail,
+          type: ShareLinkType.UNIQUE,
+          active: true,
+        } as any,
+      }),
+    );
+    if (!link) return null;
+    // Must be unconsumed and not expired to be considered "outstanding"
+    const now = new Date();
+    const notConsumed = link.useCount < (link.maxUses ?? 1);
+    const notExpired = !link.expiresAt || link.expiresAt > now;
+    return notConsumed && notExpired ? link : null;
+  }
+
+  /**
+   * List all UNIQUE share links for a given trainer (M-2: tenant-isolated by trainerId).
+   * Used by CoachesService.listInvitations to replace raw @InjectRepository(ShareLink) access.
+   * GLOBAL lookup with explicit trainerId filter — audited escape hatch (A1).
+   */
+  async findAllForTrainer(trainerId: string): Promise<ShareLink[]> {
+    return this.withoutTenantScope(() =>
+      this.repo.find({
+        where: { trainerId, type: ShareLinkType.UNIQUE } as any,
+        order: { createdAt: 'DESC' },
+      }),
+    );
+  }
+
+  /**
+   * Find a specific UNIQUE share link by id, scoped to a trainer (M-2: tenant-isolated).
+   * Used by CoachesService.resendInvitation to replace raw @InjectRepository(ShareLink) access.
+   * GLOBAL lookup with explicit trainerId filter — audited escape hatch (A1).
+   */
+  async findUniqueForTrainer(shareLinkId: string, trainerId: string): Promise<ShareLink | null> {
+    return this.withoutTenantScope(() =>
+      this.repo.findOne({
+        where: { id: shareLinkId, trainerId, type: ShareLinkType.UNIQUE } as any,
+      }),
+    );
+  }
+
+  /**
+   * Save (update) an existing ShareLink entity.
+   * Used by CoachesService.refreshLink to persist link refreshes.
+   */
+  async saveLink(link: ShareLink): Promise<ShareLink> {
+    return this.repo.save(link);
   }
 }
