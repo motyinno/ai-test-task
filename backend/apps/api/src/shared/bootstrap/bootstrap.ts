@@ -1,5 +1,6 @@
 import { INestApplication, ValidationPipe } from '@nestjs/common';
-import * as passport from 'passport';
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const passport = require('passport') as typeof import('passport');
 import { HttpExceptionFilter } from '../errors/http-exception.filter';
 import { AllExceptionsFilter } from '../errors/all-exceptions.filter';
 import { setupSession } from '../session/session.setup';
