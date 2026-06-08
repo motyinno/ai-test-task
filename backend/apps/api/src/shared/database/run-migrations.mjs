@@ -144,7 +144,8 @@ const PHASE_A_QUERIES = [
   )`,
 ];
 
-// ── Phase B: Profiles ─────────────────────────────────────────────────────────
+// ── Phase B: Profiles ────────────────────────────────────────────────────────
+
 
 const PHASE_B_MIGRATION_NAME = 'PhaseBProfiles1749400000000';
 
@@ -235,6 +236,58 @@ const PHASE_B_QUERIES = [
     ON "user_deletion_log" ("original_user_id")`,
 ];
 
+// ── Phase C: ShareLinks & Invitations ─────────────────────────────────────────
+
+const PHASE_C_MIGRATION_NAME = 'PhaseCShareLinks1749500000000';
+
+const PHASE_C_QUERIES = [
+  // share_links_type_enum
+  `DO $$ BEGIN
+    CREATE TYPE "public"."share_links_type_enum" AS ENUM('STATIC', 'UNIQUE');
+  EXCEPTION WHEN duplicate_object THEN NULL;
+  END $$`,
+
+  // share_links
+  `CREATE TABLE IF NOT EXISTS "share_links" (
+    "id"           UUID                                 NOT NULL DEFAULT uuid_generate_v4(),
+    "code"         CHARACTER VARYING                    NOT NULL,
+    "type"         "public"."share_links_type_enum"    NOT NULL,
+    "trainer_id"   UUID                                 NOT NULL,
+    "created_by"   UUID                                 NOT NULL,
+    "target_email" CHARACTER VARYING                    NULL DEFAULT NULL,
+    "expires_at"   TIMESTAMP                            NULL DEFAULT NULL,
+    "max_uses"     INTEGER                              NULL DEFAULT NULL,
+    "use_count"    INTEGER                              NOT NULL DEFAULT 0,
+    "active"       BOOLEAN                              NOT NULL DEFAULT TRUE,
+    "created_at"   TIMESTAMP                            NOT NULL DEFAULT NOW(),
+    "updated_at"   TIMESTAMP                            NOT NULL DEFAULT NOW(),
+    CONSTRAINT "PK_share_links" PRIMARY KEY ("id"),
+    CONSTRAINT "UQ_share_links_code" UNIQUE ("code")
+  )`,
+
+  `CREATE INDEX IF NOT EXISTS "IDX_share_links_trainer_id" ON "share_links" ("trainer_id")`,
+
+  // association_status_enum
+  `DO $$ BEGIN
+    CREATE TYPE "public"."association_status_enum" AS ENUM('ACTIVE', 'REMOVED');
+  EXCEPTION WHEN duplicate_object THEN NULL;
+  END $$`,
+
+  // trainer_player_associations
+  `CREATE TABLE IF NOT EXISTS "trainer_player_associations" (
+    "id"                UUID                                    NOT NULL DEFAULT uuid_generate_v4(),
+    "trainer_id"        UUID                                    NOT NULL,
+    "player_profile_id" UUID                                    NOT NULL,
+    "via_share_link_id" UUID                                    NULL DEFAULT NULL,
+    "status"            "public"."association_status_enum"      NOT NULL DEFAULT 'ACTIVE',
+    "connected_at"      TIMESTAMP                               NOT NULL DEFAULT NOW(),
+    CONSTRAINT "PK_trainer_player_associations" PRIMARY KEY ("id"),
+    CONSTRAINT "UQ_trainer_player" UNIQUE ("trainer_id", "player_profile_id")
+  )`,
+
+  `CREATE INDEX IF NOT EXISTS "IDX_tpa_trainer_id" ON "trainer_player_associations" ("trainer_id")`,
+];
+
 // ── Runner ────────────────────────────────────────────────────────────────────
 
 async function runMigration(client, name, timestamp, queries) {
@@ -286,6 +339,9 @@ async function run() {
     // Phase B: Profiles
     await runMigration(client, PHASE_B_MIGRATION_NAME, 1749400000000, PHASE_B_QUERIES);
 
+    // Phase C: ShareLinks & Invitations
+    await runMigration(client, PHASE_C_MIGRATION_NAME, 1749500000000, PHASE_C_QUERIES);
+
     // Verify key tables exist
     const tables = [
       'users',
@@ -293,6 +349,8 @@ async function run() {
       'coach_profiles',
       'player_profiles',
       'user_deletion_log',
+      'share_links',
+      'trainer_player_associations',
     ];
     for (const table of tables) {
       const result = await client.query(

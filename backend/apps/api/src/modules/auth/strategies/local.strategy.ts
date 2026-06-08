@@ -3,7 +3,7 @@ import { PassportStrategy } from '@nestjs/passport';
 import { Strategy } from 'passport-local';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { User, UserStatus } from '../../users/entities/user.entity';
+import { User, UserRole, UserStatus } from '../../users/entities/user.entity';
 import { PasswordService } from '../../../shared/crypto/password.service';
 
 export interface SessionPrincipal {
@@ -13,6 +13,12 @@ export interface SessionPrincipal {
   status: UserStatus;
   emailVerified: boolean;
   mustChangePassword: boolean;
+  /** For TRAINER role: the trainer's own userId is their org scope. */
+  trainerId?: string;
+  /** For COACH role: the trainer org this coach belongs to. */
+  // Set after coach profile lookup; optional here.
+  isChild?: boolean;
+  parentUserId?: string;
 }
 
 @Injectable()
@@ -44,7 +50,7 @@ export class LocalStrategy extends PassportStrategy(Strategy) {
       });
     }
 
-    return {
+    const principal: SessionPrincipal = {
       id: user.id,
       email: user.email,
       role: user.role,
@@ -52,5 +58,13 @@ export class LocalStrategy extends PassportStrategy(Strategy) {
       emailVerified: user.emailVerified,
       mustChangePassword: user.mustChangePassword,
     };
+
+    // For TRAINER: the trainer's own userId is the org scope (trainerId = userId).
+    // TenantMiddleware reads trainerId from the session principal.
+    if (user.role === UserRole.TRAINER) {
+      principal.trainerId = user.id;
+    }
+
+    return principal;
   }
 }
