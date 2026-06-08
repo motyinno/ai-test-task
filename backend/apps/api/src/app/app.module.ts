@@ -1,6 +1,7 @@
 import { Module, MiddlewareConsumer, NestModule, RequestMethod } from '@nestjs/common';
 import { APP_INTERCEPTOR, APP_GUARD } from '@nestjs/core';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { RolesGuard } from '../shared/authz/roles.guard';
 import { ConfigModule } from '../shared/config/config.module';
 import { DatabaseModule } from '../shared/database/database.module';
 import { TenancyModule } from '../shared/tenancy/tenancy.module';
@@ -36,6 +37,10 @@ const testControllers =
     {
       provide: APP_GUARD,
       useClass: ThrottlerGuard,
+    },
+    {
+      provide: APP_GUARD,
+      useClass: RolesGuard,
     },
   ],
 })
