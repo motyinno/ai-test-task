@@ -31,6 +31,9 @@ export class PlayersController {
    * Public endpoint: no @Roles decorator.
    * Handles both anonymous registration (STATIC link + no session) and
    * logged-in player association (any link + active session).
+   *
+   * M-3 fix: session is established from newPrincipal returned by PlayersService,
+   * eliminating bracket-access to the service's private usersRepo dependency.
    */
   @Post('join/:code')
   @HttpCode(HttpStatus.CREATED)
@@ -54,19 +57,10 @@ export class PlayersController {
       return { success: true, alreadyAssociated: true };
     }
 
-    // If this was a new registration (anonymous), establish session
-    if (!principal && result.userId) {
-      const user = await this.playersService['usersRepo'].findById(result.userId);
-      if (user) {
-        (session as Record<string, unknown>)['principal'] = {
-          id: user.id,
-          email: user.email,
-          role: user.role,
-          status: user.status,
-          emailVerified: user.emailVerified,
-          mustChangePassword: user.mustChangePassword,
-        };
-      }
+    // If this was a new anonymous registration, establish a session using the
+    // newPrincipal data returned by the service (M-3: no bracket-access to private deps).
+    if (!principal && result.newPrincipal) {
+      (session as Record<string, unknown>)['principal'] = result.newPrincipal;
     }
 
     return { success: true, alreadyAssociated: false, userId: result.userId };
