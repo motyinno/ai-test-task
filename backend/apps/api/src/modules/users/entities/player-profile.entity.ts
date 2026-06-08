@@ -37,7 +37,7 @@ export class PlayerProfile {
    * NULL for standalone (adult) player accounts.
    * FKs are preserved even after GDPR anonymization of the parent (D7).
    */
-  @Column({ name: 'parent_user_id', nullable: true, default: null })
+  @Column({ name: 'parent_user_id', type: 'varchar', nullable: true, default: null })
   parentUserId: string | null = null;
 
   /** Display name (may differ from User.email prefix) */
@@ -57,22 +57,22 @@ export class PlayerProfile {
   gender: 'MALE' | 'FEMALE' | 'OTHER' | null = null;
 
   /** School name (optional) */
-  @Column({ length: 200, nullable: true, default: null })
+  @Column({ length: 200, type: 'varchar', nullable: true, default: null })
   school: string | null = null;
 
   /** Jersey number (string to allow "00", "#7", etc.) */
-  @Column({ name: 'jersey_number', length: 20, nullable: true, default: null })
+  @Column({ name: 'jersey_number', length: 20, type: 'varchar', nullable: true, default: null })
   jerseyNumber: string | null = null;
 
   /**
    * Skill level — Q-01.01 open gap: enum values TBD.
    * Stored as varchar until the enum is defined.
    */
-  @Column({ name: 'skill_level', length: 50, nullable: true, default: null })
+  @Column({ name: 'skill_level', length: 50, type: 'varchar', nullable: true, default: null })
   skillLevel: string | null = null;
 
   /** URL to profile photo */
-  @Column({ name: 'photo_url', nullable: true, default: null })
+  @Column({ name: 'photo_url', type: 'varchar', nullable: true, default: null })
   photoUrl: string | null = null;
 
   /**

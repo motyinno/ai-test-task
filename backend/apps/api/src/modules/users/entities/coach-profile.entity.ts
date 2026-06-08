@@ -43,7 +43,7 @@ export class CoachProfile {
   bio: string | null = null;
 
   /** Credentials / certifications */
-  @Column({ nullable: true, default: null })
+  @Column({ type: 'varchar', nullable: true, default: null })
   credentials: string | null = null;
 
   /** Whether the coach's profile is publicly visible */
@@ -51,7 +51,7 @@ export class CoachProfile {
   publicProfile: boolean = false;
 
   /** URL to profile photo */
-  @Column({ name: 'photo_url', nullable: true, default: null })
+  @Column({ name: 'photo_url', type: 'varchar', nullable: true, default: null })
   photoUrl: string | null = null;
 
   @CreateDateColumn({ name: 'created_at' })

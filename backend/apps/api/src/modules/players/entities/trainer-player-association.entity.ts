@@ -37,7 +37,7 @@ export class TrainerPlayerAssociation {
   playerProfileId!: string;
 
   /** The ShareLink that was used to create this association (for audit). */
-  @Column({ name: 'via_share_link_id', nullable: true, default: null })
+  @Column({ name: 'via_share_link_id', type: 'varchar', nullable: true, default: null })
   viaShareLinkId: string | null = null;
 
   @Column({

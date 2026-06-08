@@ -37,18 +37,18 @@ export class TrainerProfile {
   @Column({ name: 'trainer_name', length: 100 })
   trainerName!: string;
 
-  @Column({ length: 20, nullable: true, default: null })
+  @Column({ length: 20, type: 'varchar', nullable: true, default: null })
   phone: string | null = null;
 
   /** URL to profile/logo photo */
-  @Column({ name: 'photo_url', nullable: true, default: null })
+  @Column({ name: 'photo_url', type: 'varchar', nullable: true, default: null })
   photoUrl: string | null = null;
 
   /**
    * Epic-05 placeholder: Stripe account / subscription fields.
    * Ownership boundary TBD — nullable until Epic-05 defines the schema.
    */
-  @Column({ name: 'stripe_account_id', nullable: true, default: null })
+  @Column({ name: 'stripe_account_id', type: 'varchar', nullable: true, default: null })
   stripeAccountId: string | null = null;
 
   @CreateDateColumn({ name: 'created_at' })
