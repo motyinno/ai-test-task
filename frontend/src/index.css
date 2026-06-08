@@ -9,8 +9,8 @@
 body {
   margin: 0;
   font-family: var(--font-body);
-  background-color: var(--paper);
-  color: var(--ink);
+  background-color: var(--bg);
+  color: var(--text-primary);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
@@ -20,11 +20,11 @@ body {
   min-height: 100svh;
 }
 
-/* === Focus rings — derived from --brand === */
+/* === Focus rings — derived from --brand-primary === */
 :focus-visible {
-  outline: 2px solid var(--brand);
+  outline: 2px solid var(--brand-primary);
   outline-offset: 2px;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-xs);
 }
 
 /* === Reduced motion baseline === */
@@ -34,4 +34,15 @@ body {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/* === Spinner keyframe (used by Button loading state) === */
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* === Skeleton pulse (used by DataTable loading skeletons) === */
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
 }

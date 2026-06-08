@@ -1,25 +1,40 @@
+/**
+ * PracticePerfect design token contract tests.
+ * Authoritative source: Task/designs/DESIGN_TOKENS.md
+ * Updated from Editorial Athletic → PracticePerfect tokens.
+ */
 import { tokens, type TokenKeys } from '../tokens';
 
 describe('design tokens contract', () => {
   const requiredKeys: TokenKeys[] = [
-    'paper',
+    // Canvas / neutral grayscale
+    'bg',
     'surface',
-    'ink',
-    'ink2',
+    'borderSoft',
     'muted',
-    'line',
-    'brand',
-    'brandTint',
-    'brandStrong',
-    'onBrand',
+    'textSecondary',
+    'textPrimary',
+    'ink',
+    // Brand
+    'brandPrimary',
+    'brandPrimarySoft',
+    'brandPrimaryDeep',
+    'brandText',
+    // Semantics
     'hazard',
     'success',
     'danger',
     'warning',
     'info',
-    'speedAngle',
-    'fontDisplay',
+    // Shadows
+    'shadowCardSoft',
+    'shadowCardStrong',
+    'shadowBtnPrimary',
+    'shadowBtnPrimaryHover',
+    // Typography families
+    'fontSans',
     'fontBody',
+    'fontDisplay',
     'fontMono',
   ];
 
@@ -31,15 +46,26 @@ describe('design tokens contract', () => {
     });
   });
 
-  it('brand token references a CSS var', () => {
-    expect(tokens.brand).toContain('var(--');
+  it('brandPrimary token references a CSS var', () => {
+    expect(tokens.brandPrimary).toContain('var(--');
   });
 
-  it('fontDisplay is Clash Display', () => {
-    expect(tokens.fontDisplay).toContain('Clash Display');
+  it('fontSans uses system sans-serif stack (no custom Fontshare fonts)', () => {
+    expect(tokens.fontSans).toContain('system-ui');
+    expect(tokens.fontSans).not.toContain('Clash Display');
+    expect(tokens.fontSans).not.toContain('Satoshi');
+    expect(tokens.fontSans).not.toContain('Martian Mono');
   });
 
-  it('fontMono is Martian Mono', () => {
-    expect(tokens.fontMono).toContain('Martian Mono');
+  it('fontMono uses system monospace stack', () => {
+    expect(tokens.fontMono).toMatch(/monospace|Menlo|Courier/i);
+  });
+
+  it('shadowBtnPrimary references the brand-primary-rgb for glow', () => {
+    expect(tokens.shadowBtnPrimary).toContain('var(--shadow-btn-primary)');
+  });
+
+  it('surface token references CSS var for card backgrounds', () => {
+    expect(tokens.surface).toContain('var(--surface)');
   });
 });

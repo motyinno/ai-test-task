@@ -1,22 +1,32 @@
+/**
+ * BrandProvider — injects per-trainer CSS custom properties.
+ *
+ * PracticePerfect design system (Task/designs/DESIGN_TOKENS.md):
+ *   --brand-primary        = raw accent hex
+ *   --brand-primary-soft   = lighten(accent, 20%)  [for gradients, soft backgrounds]
+ *   --brand-primary-deep   = darken(accent, 20%)   [for gradients, deep shadows]
+ *   --brand-primary-rgb    = "r, g, b"             [for rgba() usage in shadows]
+ *   --brand-text           = text-safe variant (≥4.5:1 on --surface, NFR-006)
+ */
 import React, { createContext, useContext, useEffect, useRef } from 'react';
-import { resolveBrandText } from '@/utils/contrast';
+import { resolveBrandText, lightenColor, darkenColor, hexToRgb } from '@/utils/contrast';
 
 interface BrandContextValue {
-  /** The raw brand hex (may not be text-safe). */
+  /** The raw brand hex (may not be text-safe on light surfaces). */
   brandHex: string;
-  /** A text-safe shade (≥4.5:1 against --surface). */
+  /** A text-safe shade (≥4.5:1 against --surface). Used for text/icons. */
   brandTextHex: string;
   setBrand: (hex: string | null) => void;
 }
 
+const DEFAULT_BRAND = '#00B300'; // PracticePerfect default green
+const SURFACE = '#FFFFFF'; // matches --surface light mode
+
 const BrandContext = createContext<BrandContextValue>({
-  brandHex: '#1B3A5B',
-  brandTextHex: '#1B3A5B',
+  brandHex: DEFAULT_BRAND,
+  brandTextHex: DEFAULT_BRAND,
   setBrand: () => {},
 });
-
-const DEFAULT_BRAND = '#1B3A5B';
-const SURFACE = '#FFFFFF'; // matches --surface light mode
 
 interface BrandProviderProps {
   children: React.ReactNode;
@@ -36,7 +46,16 @@ export function BrandProvider({ children, rootEl }: BrandProviderProps) {
 
   useEffect(() => {
     const el = rootRef.current ?? document.documentElement;
-    el.style.setProperty('--brand', brandHex);
+
+    // Core accent
+    el.style.setProperty('--brand-primary', brandHex);
+    // Derived accent variants (DESIGN_TOKENS.md)
+    el.style.setProperty('--brand-primary-soft', lightenColor(brandHex, 20));
+    el.style.setProperty('--brand-primary-deep', darkenColor(brandHex, 20));
+    // RGB components for rgba() shadow usage
+    const [r, g, b] = hexToRgb(brandHex);
+    el.style.setProperty('--brand-primary-rgb', `${r}, ${g}, ${b}`);
+    // Text-safe variant (WCAG AA guard)
     el.style.setProperty('--brand-text', brandTextHex);
   }, [brandHex, brandTextHex]);
 

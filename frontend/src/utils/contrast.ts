@@ -1,10 +1,17 @@
 /**
- * WCAG 2.1 contrast utilities.
+ * WCAG 2.1 contrast utilities + PracticePerfect brand color helpers.
  * Pure logic — no DOM, no side effects. Suitable for unit testing.
+ *
+ * Authoritative token spec: Task/designs/DESIGN_TOKENS.md
  */
 
-/** Parse a 6-digit hex color to [r, g, b] in 0..255. */
-function hexToRgb(hex: string): [number, number, number] {
+// ─── Hex / RGB helpers ────────────────────────────────────────────────────────
+
+/**
+ * Parse a 6-digit hex color to [r, g, b] in 0..255.
+ * Exported for use by BrandProvider to compute --brand-primary-rgb.
+ */
+export function hexToRgb(hex: string): [number, number, number] {
   const clean = hex.replace('#', '').toLowerCase();
   const r = parseInt(clean.slice(0, 2), 16);
   const g = parseInt(clean.slice(2, 4), 16);
@@ -12,7 +19,41 @@ function hexToRgb(hex: string): [number, number, number] {
   return [r, g, b];
 }
 
-/** Convert a linear RGB channel (0..1) to relative luminance contribution. */
+/** Convert [r,g,b] 0..255 to a hex string. */
+function rgbToHex(r: number, g: number, b: number): string {
+  const toHex = (n: number) =>
+    Math.max(0, Math.min(255, Math.round(n))).toString(16).padStart(2, '0');
+  return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+}
+
+// ─── Brand accent utilities (DESIGN_TOKENS.md) ────────────────────────────────
+
+/**
+ * Lighten a hex color by a percentage (0–100).
+ * Moves the lightness channel toward 100% by `pct` percentage points.
+ */
+export function lightenColor(hex: string, pct: number): string {
+  const [r, g, b] = hexToRgb(hex);
+  const factor = pct / 100;
+  const nr = r + (255 - r) * factor;
+  const ng = g + (255 - g) * factor;
+  const nb = b + (255 - b) * factor;
+  return rgbToHex(nr, ng, nb);
+}
+
+/**
+ * Darken a hex color by a percentage (0–100).
+ * Moves the lightness channel toward 0% by `pct` percentage points.
+ */
+export function darkenColor(hex: string, pct: number): string {
+  const [r, g, b] = hexToRgb(hex);
+  const factor = 1 - pct / 100;
+  return rgbToHex(r * factor, g * factor, b * factor);
+}
+
+// ─── WCAG 2.1 contrast utilities ──────────────────────────────────────────────
+
+/** Convert a linear RGB channel (0..255) to relative luminance contribution. */
 function linearize(channel: number): number {
   const c = channel / 255;
   return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
@@ -39,17 +80,14 @@ export function contrastRatio(fg: string, bg: string): number {
   return (lighter + 0.05) / (darker + 0.05);
 }
 
-/** Convert [r,g,b] 0..255 to a hex string. */
-function rgbToHex(r: number, g: number, b: number): string {
-  const toHex = (n: number) => Math.max(0, Math.min(255, Math.round(n))).toString(16).padStart(2, '0');
-  return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
-}
-
 /**
- * Resolve a brand color that is safe to use as text on the given surface color.
+ * Resolve a brand color that is safe to use as TEXT on the given surface color.
  * - If the brand color already meets AA (≥4.5:1 contrast ratio), returns it unchanged.
  * - Otherwise, darken (or lighten for dark surfaces) the brand color in HSL steps
  *   until it reaches ≥4.5:1. Falls back to `#000000` / `#FFFFFF` if no shade works.
+ *
+ * Used for --brand-text (the text-safe variant of --brand-primary).
+ * NFR-006: WCAG 2.1 AA a11y guarantee.
  */
 export function resolveBrandText(brandHex: string, surfaceHex: string): string {
   const WCAG_AA_TEXT = 4.5;
@@ -86,16 +124,16 @@ export function resolveBrandText(brandHex: string, surfaceHex: string): string {
       const hue2rgb = (p: number, q: number, t: number) => {
         if (t < 0) t += 1;
         if (t > 1) t -= 1;
-        if (t < 1/6) return p + (q - p) * 6 * t;
-        if (t < 1/2) return q;
-        if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
+        if (t < 1 / 6) return p + (q - p) * 6 * t;
+        if (t < 1 / 2) return q;
+        if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
         return p;
       };
       const q = lv < 0.5 ? lv * (1 + sv) : lv + sv - lv * sv;
       const p = 2 * lv - q;
-      rv = hue2rgb(p, q, hv + 1/3);
+      rv = hue2rgb(p, q, hv + 1 / 3);
       gv = hue2rgb(p, q, hv);
-      bv = hue2rgb(p, q, hv - 1/3);
+      bv = hue2rgb(p, q, hv - 1 / 3);
     }
     return [Math.round(rv * 255), Math.round(gv * 255), Math.round(bv * 255)];
   }

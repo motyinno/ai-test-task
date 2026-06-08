@@ -1,45 +1,55 @@
 /**
- * Design token mirror — keeps JS/CSS var names in sync.
- * Values are CSS custom-property references (or raw values for non-color tokens).
- * The actual values live in tokens.css.
+ * PracticePerfect Design Token mirror — keeps JS/CSS var names in sync.
+ * Authoritative source: Task/designs/DESIGN_TOKENS.md
+ * Values are CSS custom-property references. Actual values live in tokens.css.
  */
 
 export type TokenKeys =
-  | 'paper'
+  // Canvas
+  | 'bg'
   | 'surface'
-  | 'ink'
-  | 'ink2'
+  | 'borderSoft'
   | 'muted'
-  | 'line'
-  | 'brand'
-  | 'brandTint'
-  | 'brandStrong'
-  | 'onBrand'
+  | 'textSecondary'
+  | 'textPrimary'
+  | 'ink'
+  // Brand
+  | 'brandPrimary'
+  | 'brandPrimarySoft'
+  | 'brandPrimaryDeep'
+  | 'brandText'
+  // Semantics
   | 'hazard'
   | 'success'
   | 'danger'
   | 'warning'
   | 'info'
-  | 'speedAngle'
-  | 'shadowCard'
-  | 'fontDisplay'
+  // Shadows
+  | 'shadowCardSoft'
+  | 'shadowCardStrong'
+  | 'shadowBtnPrimary'
+  | 'shadowBtnPrimaryHover'
+  // Typography families
+  | 'fontSans'
   | 'fontBody'
+  | 'fontDisplay'
   | 'fontMono';
 
 export const tokens: Record<TokenKeys, string> = {
   // Canvas
-  paper:       'var(--paper)',
-  surface:     'var(--surface)',
-  ink:         'var(--ink)',
-  ink2:        'var(--ink-2)',
-  muted:       'var(--muted)',
-  line:        'var(--line)',
+  bg:           'var(--bg)',
+  surface:      'var(--surface)',
+  borderSoft:   'var(--border-soft)',
+  muted:        'var(--muted)',
+  textSecondary: 'var(--text-secondary)',
+  textPrimary:  'var(--text-primary)',
+  ink:          'var(--ink)',
 
-  // Dynamic white-label brand
-  brand:       'var(--brand)',
-  brandTint:   'var(--brand-tint)',
-  brandStrong: 'var(--brand-strong)',
-  onBrand:     'var(--on-brand)',
+  // Brand
+  brandPrimary:     'var(--brand-primary)',
+  brandPrimarySoft: 'var(--brand-primary-soft)',
+  brandPrimaryDeep: 'var(--brand-primary-deep)',
+  brandText:        'var(--brand-text)',
 
   // Fixed semantics
   hazard:   'var(--hazard)',
@@ -48,12 +58,15 @@ export const tokens: Record<TokenKeys, string> = {
   warning:  'var(--warning)',
   info:     'var(--info)',
 
-  // Motif
-  speedAngle: 'var(--speed-angle)',
-  shadowCard: 'var(--shadow-card)',
+  // Shadows
+  shadowCardSoft:        'var(--shadow-card-soft)',
+  shadowCardStrong:      'var(--shadow-card-strong)',
+  shadowBtnPrimary:      'var(--shadow-btn-primary)',
+  shadowBtnPrimaryHover: 'var(--shadow-btn-primary-hover)',
 
   // Typography families
-  fontDisplay: "'Clash Display', sans-serif",
-  fontBody:    "'Satoshi', sans-serif",
-  fontMono:    "'Martian Mono', monospace",
+  fontSans:    "system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
+  fontBody:    'var(--font-body)',
+  fontDisplay: 'var(--font-display)',
+  fontMono:    "ui-monospace, 'SF Mono', 'Cascadia Code', 'Roboto Mono', Menlo, Courier, monospace",
 } as const;

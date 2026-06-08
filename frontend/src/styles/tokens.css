@@ -1,95 +1,94 @@
 /* =========================================================
-   Editorial Athletic — Design Tokens
-   All colour/spacing tokens as CSS custom properties.
-   Tailwind reads these via theme extension in vite.config.
+   PracticePerfect — Design Tokens
+   Authoritative source: Task/designs/DESIGN_TOKENS.md
+   All colour/spacing/radius tokens as CSS custom properties.
    ========================================================= */
 
-/* --- Fontshare self-hosted fonts --- */
-@font-face {
-  font-family: 'Clash Display';
-  src: url('../assets/fonts/ClashDisplay-Variable.woff2') format('woff2');
-  font-weight: 100 900;
-  font-display: swap;
-}
-@font-face {
-  font-family: 'Satoshi';
-  src: url('../assets/fonts/Satoshi-Variable.woff2') format('woff2');
-  font-weight: 100 900;
-  font-display: swap;
-}
-@font-face {
-  font-family: 'Martian Mono';
-  src: url('../assets/fonts/MartianMono-VariableFont_wdth,wght.woff2') format('woff2');
-  font-weight: 100 900;
-  font-display: swap;
-}
-
 :root {
-  /* === Canvas === */
-  --paper:   #F7F4EE;   /* app background — warm editorial, NOT pure #fff */
-  --surface: #FFFFFF;   /* cards / sheets */
-  --ink:     #14151A;   /* primary text (warm near-black) */
-  --ink-2:   #3A3D45;   /* secondary text */
-  --muted:   #8A8D96;   /* tertiary / placeholders */
-  --line:    #E6E1D7;   /* hairlines, dividers, table rules */
+  /* === Canvas — neutral grayscale base === */
+  --bg:        #F3F3F3;   /* app background */
+  --surface:   #FFFFFF;   /* cards / sheets */
+  --border-soft: #CFCFCF; /* hairlines, dividers, table rules */
+  --muted:     #868686;   /* tertiary / placeholders */
+  --text-secondary: #5E5E5E; /* secondary text */
+  --text-primary:   #363636; /* primary body text */
+  --ink:       #0D0D0D;   /* strongest text (headings, emphasis) */
 
-  /* === Dynamic white-label brand ===
-     Overridden per trainer org via BrandProvider.
-     Defaults to platform ink-blue when no trainer context. */
-  --brand:        #1B3A5B;
-  --brand-tint:   color-mix(in oklab, var(--brand) 12%, var(--surface));
-  --brand-strong: color-mix(in oklab, var(--brand) 80%, black);
-  --on-brand:     #FFFFFF; /* contrast-checked at runtime */
+  /* === Dynamic white-label brand (overridden per trainer) ===
+     Defaults to PracticePerfect green.
+     --brand-primary-soft and --brand-primary-deep are set by BrandProvider in JS.
+     --brand-primary-rgb = "r, g, b" for rgba() usage. */
+  --brand-primary:      #00B300;
+  --brand-primary-soft: #33cc33;   /* lighten(#00B300, 20%) — updated by BrandProvider */
+  --brand-primary-deep: #008000;   /* darken(#00B300, 20%) — updated by BrandProvider */
+  --brand-primary-rgb:  0, 179, 0; /* rgb components for rgba() — updated by BrandProvider */
+  --brand-text:         #00B300;   /* text-safe variant (contrast-checked at runtime) */
 
-  /* === Fixed semantics (outside typical trainer-brand space) === */
+  /* === Fixed semantics === */
   --hazard:  #FF5A1F;   /* impersonation banner ONLY */
   --success: #1E7A4D;
   --danger:  #C42B2B;
   --warning: #B7791F;
   --info:    #2563A8;
 
-  /* === Elevation === */
-  --shadow-card: 0 1px 0 var(--line), 0 12px 28px -18px rgba(20,21,26,0.25);
-
-  /* === Kinetic motif === */
-  --speed-angle: -18deg;
+  /* === Elevation / Shadows === */
+  --shadow-card-soft:   0 2px 8px rgba(0, 0, 0, 0.2);
+  --shadow-card-strong: 0 4px 16px rgba(0, 0, 0, 0.3);
+  /* button shadows use rgba(--brand-primary-rgb, ...) — set dynamically via BrandProvider */
+  --shadow-btn-primary:       0 10px 30px rgba(var(--brand-primary-rgb), 0.55);
+  --shadow-btn-primary-hover: 0 12px 34px rgba(var(--brand-primary-rgb), 0.7);
+  /* Legacy alias for components that still reference --shadow-card */
+  --shadow-card: var(--shadow-card-soft);
 
   /* === Spacing scale (4px base) === */
-  --space-1:  0.25rem;  /* 4px */
-  --space-2:  0.5rem;   /* 8px */
-  --space-3:  0.75rem;  /* 12px */
-  --space-4:  1rem;     /* 16px */
-  --space-6:  1.5rem;   /* 24px */
-  --space-10: 2.5rem;   /* 40px */
-  --space-16: 4rem;     /* 64px */
-  --space-24: 6rem;     /* 96px */
+  --space-xxs: 0.25rem;  /*  4px */
+  --space-xs:  0.5rem;   /*  8px */
+  --space-sm:  0.75rem;  /* 12px */
+  --space-md:  1rem;     /* 16px */
+  --space-lg:  1.5rem;   /* 24px */
+  --space-xl:  2rem;     /* 32px */
+  --space-xxl: 2.5rem;   /* 40px */
 
-  /* === Typography === */
-  --font-display: 'Clash Display', sans-serif;
-  --font-body:    'Satoshi', sans-serif;
-  --font-mono:    'Martian Mono', monospace;
+  /* === Typography — system sans, no custom fonts === */
+  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-body: var(--font-sans);
+  --font-display: var(--font-sans);
+  --font-mono: ui-monospace, "SF Mono", "Cascadia Code", "Roboto Mono", Menlo, Courier, monospace;
 
-  --text-stat:  clamp(3rem, 6vw, 5.5rem);
-  --text-h1:    clamp(2rem, 4vw, 3rem);
-  --text-h2:    1.75rem;
-  --text-h3:    1.25rem;
-  --text-body:  1rem;
-  --text-sm:    0.875rem;
-  --text-label: 0.75rem;
+  /* === Typography scale (from DESIGN_TOKENS.md text.svg) === */
+  --text-hero:    1.875rem; /* 30px / 38px / 700 */
+  --text-section: 1.375rem; /* 22px / 28px / 700 */
+  --text-block:   1.125rem; /* 18px / 24px / 700 */
+  --text-card:    1rem;     /* 16px / 22px / 600 */
+  --text-body-lg: 1rem;     /* 16px / 26px / 400 */
+  --text-body:    0.875rem; /* 14px / 22px / 400 */
+  --text-caption: 0.75rem;  /* 12px / 18px / 400 */
+  --text-eyebrow: 0.6875rem;/* 11px / 16px / 600 uppercase */
 
-  /* === Radius === */
-  --radius-sm: 4px;
-  --radius-md: 6px;   /* square-ish — editorial, not pill */
-  --radius-lg: 8px;
+  /* Legacy aliases (used by existing components) */
+  --text-h1:    var(--text-hero);
+  --text-h2:    var(--text-section);
+  --text-h3:    var(--text-block);
+  --text-sm:    var(--text-body);
+  --text-label: var(--text-caption);
+  --text-stat:  clamp(2rem, 5vw, 3.5rem);
+
+  /* === Border Radius === */
+  --radius-xs:  6px;    /* small elements */
+  --radius-sm:  10px;   /* buttons, inputs */
+  --radius-md:  16px;   /* cards */
+  --radius-lg:  24px;   /* large cards */
+  --radius-xl:  32px;   /* hero sections */
+  --radius-pill: 999px; /* pill badges */
 }
 
 /* === Dark mode === */
 [data-theme="dark"] {
-  --paper:   #101216;
-  --surface: #181B21;
-  --ink:     #F2EFE9;
-  --ink-2:   #B9BCC4;
-  --muted:   #767A84;
-  --line:    #262A31;
-  --brand-tint: color-mix(in oklab, var(--brand) 22%, var(--surface));
+  --bg:           #101216;
+  --surface:      #181B21;
+  --border-soft:  #2E2E2E;
+  --muted:        #686868;
+  --text-secondary: #9A9A9A;
+  --text-primary:   #CFCFCF;
+  --ink:          #F3F3F3;
 }
