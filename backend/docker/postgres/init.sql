@@ -1,0 +1,2 @@
+-- Initialize trainer_app databases
+-- Dev and test databases are created via docker-compose environment variables
