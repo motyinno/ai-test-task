@@ -1,6 +1,6 @@
-import { Injectable, BadRequestException, UnauthorizedException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Injectable, BadRequestException, UnauthorizedException, Logger } from '@nestjs/common';
+import { InjectRepository, InjectDataSource } from '@nestjs/typeorm';
+import { Repository, DataSource, IsNull } from 'typeorm';
 import { Request } from 'express';
 import * as crypto from 'crypto';
 import { SessionContextService } from './session-context.service';
@@ -17,6 +17,8 @@ const TWENTY_FOUR_HOURS_MS = 24 * ONE_HOUR_MS;
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     private readonly sessionCtx: SessionContextService,
     private readonly passwordService: PasswordService,
@@ -27,14 +29,36 @@ export class AuthService {
     private readonly resetTokenRepo: Repository<PasswordResetToken>,
     @InjectRepository(EmailVerificationToken)
     private readonly verifyTokenRepo: Repository<EmailVerificationToken>,
+    @InjectDataSource()
+    private readonly dataSource: DataSource,
   ) {}
 
   /**
    * Sets the session principal after successful login.
+   * H1: Regenerates the session ID before writing the principal to prevent
+   * session fixation attacks. Also rotates the CSRF token on auth-state change.
    */
-  login(req: Request, principal: SessionPrincipal): MeResponseDto {
-    this.sessionCtx.setPrincipal(req, principal);
-    return this.buildMeResponse(principal, req);
+  login(req: Request, principal: SessionPrincipal): Promise<MeResponseDto> {
+    return new Promise((resolve, reject) => {
+      req.session.regenerate((err) => {
+        if (err) {
+          reject(err);
+          return;
+        }
+        // Write principal and fresh CSRF token into the new session
+        this.sessionCtx.setPrincipal(req, principal);
+        // Rotate CSRF token on auth-state change (H1)
+        (req.session as unknown as Record<string, unknown>)['csrfToken'] =
+          crypto.randomBytes(24).toString('base64url');
+        req.session.save((saveErr) => {
+          if (saveErr) {
+            reject(saveErr);
+            return;
+          }
+          resolve(this.buildMeResponse(principal, req));
+        });
+      });
+    });
   }
 
   async logout(req: Request): Promise<void> {
@@ -80,8 +104,12 @@ export class AuthService {
 
   /**
    * A16: Confirm password reset with token.
+   * H3: Atomic single-use consumption — UPDATE ... WHERE usedAt IS NULL to prevent
+   * race conditions. Only proceeds if exactly 1 row was affected.
+   * H4: Invalidates all existing sessions for the user after password reset.
    */
   async confirmPasswordReset(token: string, newPassword: string): Promise<void> {
+    // First verify the token exists and is valid (for error reporting)
     const record = await this.resetTokenRepo.findOne({ where: { token } });
 
     if (!record) {
@@ -105,18 +133,34 @@ export class AuthService {
       });
     }
 
+    // H3: Atomic consumption — conditional UPDATE WHERE usedAt IS NULL
+    // Prevents race: two concurrent requests for the same token can only get 1 success.
+    const consumeResult = await this.resetTokenRepo.update(
+      { id: record.id, usedAt: IsNull() },
+      { usedAt: new Date() },
+    );
+
+    if (!consumeResult.affected || consumeResult.affected === 0) {
+      // Another request already consumed this token concurrently
+      throw new BadRequestException({
+        message: 'Token has already been used',
+        errorCode: 'TOKEN_USED',
+      });
+    }
+
     const newHash = await this.passwordService.hash(newPassword);
     await this.userRepo.update(record.userId, {
       passwordHash: newHash,
       mustChangePassword: false,
     });
 
-    // Mark token as used
-    await this.resetTokenRepo.update(record.id, { usedAt: new Date() });
+    // H4: Invalidate all existing sessions for this user
+    await this.invalidateUserSessions(record.userId);
   }
 
   /**
    * A17: Verify email with token (non-blocking).
+   * H3: Atomic single-use consumption to prevent race conditions.
    */
   async verifyEmail(token: string): Promise<void> {
     const record = await this.verifyTokenRepo.findOne({ where: { token } });
@@ -142,8 +186,20 @@ export class AuthService {
       });
     }
 
+    // H3: Atomic consumption — conditional UPDATE WHERE usedAt IS NULL
+    const consumeResult = await this.verifyTokenRepo.update(
+      { id: record.id, usedAt: IsNull() },
+      { usedAt: new Date() },
+    );
+
+    if (!consumeResult.affected || consumeResult.affected === 0) {
+      throw new BadRequestException({
+        message: 'Token has already been used',
+        errorCode: 'TOKEN_USED',
+      });
+    }
+
     await this.userRepo.update(record.userId, { emailVerified: true });
-    await this.verifyTokenRepo.update(record.id, { usedAt: new Date() });
   }
 
   /**
@@ -171,11 +227,13 @@ export class AuthService {
 
   /**
    * A17: First-login forced password change.
+   * H4: Invalidates all existing sessions for the user after password change.
    */
   async changePassword(
     userId: string,
     currentPassword: string,
     newPassword: string,
+    currentReq?: Request,
   ): Promise<void> {
     const user = await this.userRepo.findOne({ where: { id: userId } });
     if (!user) {
@@ -195,6 +253,40 @@ export class AuthService {
       passwordHash: newHash,
       mustChangePassword: false,
     });
+
+    // H4: Invalidate all existing sessions for this user
+    await this.invalidateUserSessions(userId, currentReq);
+  }
+
+  /**
+   * H4: Delete all Postgres session store rows where the session JSON contains
+   * the given userId in `principal.id`.
+   *
+   * connect-pg-simple stores sessions as JSON in the `sess` column.
+   * We use a JSONB cast to efficiently match by principal.id.
+   *
+   * If the sessions table does not exist yet (test env with synchronize=true
+   * on a fresh DB), we log a warning and continue rather than crashing.
+   *
+   * @param excludeCurrentSessionId - If provided, the current request's session
+   *   is NOT deleted so the caller can still send a response (optional: callers
+   *   that want to log the user out immediately should pass undefined).
+   */
+  async invalidateUserSessions(userId: string, currentReq?: Request): Promise<void> {
+    try {
+      const excludeSid = currentReq?.session?.id;
+      const params: unknown[] = [userId];
+      let query = `DELETE FROM sessions WHERE sess->'principal'->>'id' = $1`;
+      if (excludeSid) {
+        params.push(excludeSid);
+        query += ` AND sid != $2`;
+      }
+      await this.dataSource.query(query, params);
+    } catch (err) {
+      // Log but do not throw — session invalidation failure is a security degradation
+      // but not a fatal error for the password change operation itself.
+      this.logger.warn(`Failed to invalidate sessions for user ${userId}: ${String(err)}`);
+    }
   }
 
   private buildMeResponse(principal: SessionPrincipal, req: Request): MeResponseDto {

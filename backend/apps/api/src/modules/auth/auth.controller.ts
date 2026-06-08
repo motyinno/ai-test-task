@@ -17,7 +17,7 @@ import { AuthService } from './auth.service';
 import { LocalAuthGuard } from './guards/local-auth.guard';
 import { SessionAuthGuard } from './guards/session-auth.guard';
 import { LoginDto } from './dto/login.dto';
-import { MeResponseDto } from './dto/me-response.dto';
+import type { MeResponseDto } from './dto/me-response.dto';
 import { SessionContextService } from './session-context.service';
 import { RequestPasswordResetDto } from './dto/request-password-reset.dto';
 import { ConfirmPasswordResetDto } from './dto/confirm-password-reset.dto';
@@ -40,7 +40,7 @@ export class AuthController {
   @UseGuards(LocalAuthGuard)
   @Post('login')
   @HttpCode(200)
-  login(@Req() req: Request, @Body() _dto: LoginDto): MeResponseDto {
+  async login(@Req() req: Request, @Body() _dto: LoginDto): Promise<MeResponseDto> {
     const principal = (req as unknown as { user: Parameters<AuthService['login']>[1] }).user;
     return this.authService.login(req, principal);
   }
@@ -140,7 +140,7 @@ export class AuthController {
     const session = req.session as unknown as SessionRecord;
     const principal = session['principal'] as { id: string } | undefined;
     if (!principal) throw new UnauthorizedException();
-    await this.authService.changePassword(principal.id, body.currentPassword, body.newPassword);
+    await this.authService.changePassword(principal.id, body.currentPassword, body.newPassword, req);
     return { ok: true };
   }
 }
