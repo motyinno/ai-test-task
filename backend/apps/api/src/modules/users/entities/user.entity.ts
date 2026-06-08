@@ -22,7 +22,15 @@ export enum UserStatus {
 
 /**
  * Core user account — global entity (not tenant-filtered).
- * PII columns (email, firstName, lastName, phone) are the anonymization target (D7).
+ *
+ * This entity carries only account-level fields: email, passwordHash, role,
+ * status, and lifecycle timestamps. It has NO firstName/lastName/phone columns —
+ * those live exclusively on role-specific profile tables (TrainerProfile,
+ * CoachProfile, PlayerProfile).
+ *
+ * GDPR anonymization target (D7 / US-01.13): both this row AND the matching
+ * role-profile row(s) must be scrubbed in the same transaction.
+ * See UsersRepository.anonymizeInTransaction for the authoritative implementation.
  */
 @Entity('users')
 export class User {
