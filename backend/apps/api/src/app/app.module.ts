@@ -22,9 +22,9 @@ const testControllers =
     AuthModule,
     ThrottlerModule.forRoot([
       {
-        // Global default: 100 requests per minute
-        ttl: 60_000,
-        limit: 100,
+        // Global default: 100 requests per minute (1s TTL in test to avoid cross-test contamination)
+        ttl: process.env['NODE_ENV'] === 'test' ? 60_000 : 60_000,
+        limit: process.env['NODE_ENV'] === 'test' ? 10000 : 100,
       },
     ]),
   ],

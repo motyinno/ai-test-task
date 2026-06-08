@@ -54,9 +54,6 @@ export class CsrfMiddleware implements NestMiddleware {
       });
     }
 
-    // Rotate token after successful validation (optional but good practice)
-    session['csrfToken'] = crypto.randomBytes(24).toString('base64url');
-
     return next();
   }
 

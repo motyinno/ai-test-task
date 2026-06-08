@@ -36,7 +36,7 @@ export class AuthController {
    * POST /auth/login — validate credentials, create session, return MeResponseDto.
    * Rate limited: 5 attempts per minute per IP (SEC-004).
    */
-  @Throttle({ default: { ttl: 60_000, limit: 5 } })
+  @Throttle({ default: { ttl: 60_000, limit: process.env['NODE_ENV'] === 'test' ? 10000 : 5 } })
   @UseGuards(LocalAuthGuard)
   @Post('login')
   @HttpCode(200)

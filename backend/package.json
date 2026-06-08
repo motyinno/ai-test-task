@@ -7,7 +7,7 @@
     "nx": "nx",
     "start": "nx serve api",
     "build": "nx build api",
-    "test": "nx test",
+    "test": "nx test api --maxWorkers=1",
     "lint": "nx lint"
   },
   "devDependencies": {

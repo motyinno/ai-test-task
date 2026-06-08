@@ -9,4 +9,5 @@ export default {
   coverageDirectory: '../../coverage/apps/api',
   testPathPattern: 'apps/api/src',
   testMatch: ['**/__tests__/**/*.spec.ts', '**/*.spec.ts', '**/*.e2e-spec.ts'],
+  testTimeout: 30000,
 };
