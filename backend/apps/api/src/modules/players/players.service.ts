@@ -28,11 +28,27 @@ export interface JoinContext {
   parentUserId?: string;
 }
 
+/**
+ * Session data returned from joinViaLink for new registrations.
+ * Used by PlayersController to establish the session without bracket-accessing
+ * private service internals (M-3 fix).
+ */
+export interface NewPrincipalSession {
+  id: string;
+  email: string;
+  role: string;
+  status: string;
+  emailVerified: boolean;
+  mustChangePassword: boolean;
+}
+
 export interface JoinResult {
   alreadyAssociated: boolean;
   userId: string;
   playerProfileId?: string;
   coachProfileId?: string;
+  /** Set for new anonymous registrations — used by controller to establish session (M-3). */
+  newPrincipal?: NewPrincipalSession;
 }
 
 @Injectable()
@@ -133,6 +149,8 @@ export class PlayersService {
     code: string,
   ): Promise<JoinResult> {
     // Validate required fields for anonymous registration
+    // Note: missing fields result in 409 VALIDATION_ERROR here; ideally these should be
+    // caught at DTO validation level (class-validator) for a 400 response.
     if (!dto.email || !dto.password || !dto.playerName) {
       throw new ConflictException({
         message: 'email, password, and playerName are required for anonymous registration',
@@ -151,7 +169,7 @@ export class PlayersService {
 
     const passwordHash = await this.passwordService.hash(dto.password);
 
-    const { userId, playerProfileId } = await this.dataSource.transaction(async (em) => {
+    const { userId, playerProfileId, newPrincipal } = await this.dataSource.transaction(async (em) => {
       // Create user
       const user = await em.save(User, em.create(User, {
         email: dto.email,
@@ -177,15 +195,28 @@ export class PlayersService {
         status: AssociationStatus.ACTIVE,
       }));
 
-      return { userId: user.id, playerProfileId: profile.id };
+      return {
+        userId: user.id,
+        playerProfileId: profile.id,
+        // Return session data inline to avoid needing a second DB query in the controller (M-3)
+        newPrincipal: {
+          id: user.id,
+          email: user.email,
+          role: user.role,
+          status: user.status,
+          emailVerified: user.emailVerified,
+          mustChangePassword: user.mustChangePassword,
+        } as NewPrincipalSession,
+      };
     });
 
     // Best-effort static link use count increment (analytics only, never blocks join)
+    // NOTE: intentionally unscoped and fire-and-forget — do NOT move into the tx above.
     this.shareLinksRepo.incrementUseCountBestEffort(link.id).catch((err) => {
       this.logger.warn(`[ANALYTICS] Failed to increment use_count for link ${link.id}: ${(err as Error).message}`);
     });
 
-    return { alreadyAssociated: false, userId, playerProfileId };
+    return { alreadyAssociated: false, userId, playerProfileId, newPrincipal };
   }
 
   /**
@@ -215,6 +246,7 @@ export class PlayersService {
       await this.playersRepo.saveAssociation(existing);
 
       // Best-effort static link increment
+      // NOTE: intentionally unscoped and fire-and-forget — do NOT move into the tx.
       this.shareLinksRepo.incrementUseCountBestEffort(link.id).catch((err) => {
         this.logger.warn(`[ANALYTICS] Failed to increment use_count: ${(err as Error).message}`);
       });
@@ -232,6 +264,7 @@ export class PlayersService {
       });
 
       // Best-effort static link increment
+      // NOTE: intentionally unscoped and fire-and-forget — do NOT move into the tx.
       this.shareLinksRepo.incrementUseCountBestEffort(link.id).catch((err) => {
         this.logger.warn(`[ANALYTICS] Failed to increment use_count: ${(err as Error).message}`);
       });
@@ -251,13 +284,44 @@ export class PlayersService {
    * Atomic: consume the link + create User (if anonymous) + create/link CoachProfile
    * all in ONE transaction. If consume fails, the whole tx rolls back — no orphan users.
    * BR-006: coach can only be ACTIVE under one trainer at a time.
+   *
+   * M-4: UNIQUE (coach) links may only be accepted by the intended invitee.
+   * A logged-in principal whose role/email doesn't match the invite target is rejected.
+   *
+   * M-1: concurrent accept race — if two requests race on a brand-new coach (no existing
+   * CoachProfile), both see null and both try to INSERT. One wins; the other gets a raw
+   * Postgres 23505 unique violation (coach_profiles.user_id is UNIQUE per entity).
+   * BR-006 relies on this constraint as the race backstop: we catch 23505 and map to
+   * 409 COACH_ALREADY_ACTIVE_ELSEWHERE instead of letting a raw 500 escape.
    */
   private async handleCoachAcceptance(
-    link: { id: string; trainerId: string; type: ShareLinkType },
+    link: { id: string; trainerId: string; type: ShareLinkType; targetEmail?: string | null },
     dto: JoinViaLinkDto,
     ctx: JoinContext,
     code: string,
   ): Promise<JoinResult> {
+    // M-4: Enforce that UNIQUE (coach) links are only accepted by the intended invitee.
+    // Reject a logged-in principal whose role/email doesn't match the invite intent.
+    if (ctx.principalId) {
+      // Look up the logged-in user to get their email
+      const principalUser = await this.usersRepo.findById(ctx.principalId);
+      if (principalUser) {
+        const isCoach = principalUser.role === UserRole.COACH;
+        const emailMatches = link.targetEmail && principalUser.email === link.targetEmail;
+        // Reject if the principal is not a coach AND their email doesn't match the invite
+        if (!isCoach && !emailMatches) {
+          this.logger.warn(
+            `[SECURITY] M-4: logged-in principal role=${principalUser.role} email=${principalUser.email} ` +
+            `attempted to consume coach UNIQUE link targeting ${link.targetEmail}`,
+          );
+          throw new ForbiddenException({
+            message: 'This invite link is intended for a specific coach. Your account does not match the invite.',
+            errorCode: 'INVITE_RECIPIENT_MISMATCH',
+          });
+        }
+      }
+    }
+
     // Pre-hash password outside tx (expensive, avoid repeating inside tx)
     let passwordHash: string | undefined;
     let existingUserId: string | undefined;
@@ -268,6 +332,7 @@ export class PlayersService {
       if (existingUser) {
         existingUserId = existingUser.id;
       } else {
+        // Note: missing password results in 409 VALIDATION_ERROR here; ideally DTO-level 400.
         if (!dto.password) {
           throw new ConflictException({ message: 'password is required', errorCode: 'VALIDATION_ERROR' });
         }
@@ -288,60 +353,92 @@ export class PlayersService {
     }
 
     // Atomic: consume link + (create user if anonymous) + create/update CoachProfile
-    const { userId, coachProfileId } = await this.dataSource.transaction(async (em) => {
-      // Step 1: Atomic single-use consume (C9): conditional UPDATE where use_count < max_uses
-      const consumed = await this.shareLinksRepo.consumeUnique(em, code);
-      if (!consumed) {
-        throw new GoneException({
-          message: 'Link has already been used',
-          errorCode: 'LINK_USED',
-        });
-      }
+    let newPrincipal: NewPrincipalSession | undefined;
 
-      // Step 2: Resolve user ID (create new user if anonymous)
-      let resolvedUserId: string;
-      if (ctx.principalId) {
-        resolvedUserId = ctx.principalId;
-      } else if (existingUserId) {
-        resolvedUserId = existingUserId;
-      } else {
-        // Create new coach user inside the transaction (atomic with consume)
-        const newUser = await em.save(User, em.create(User, {
-          email: dto.email!,
-          passwordHash: passwordHash!,
-          role: UserRole.COACH,
-          status: UserStatus.ACTIVE,
-          emailVerified: false,
-        }));
-        resolvedUserId = newUser.id;
-      }
+    try {
+      const { userId, coachProfileId, createdUser } = await this.dataSource.transaction(async (em) => {
+        // Step 1: Atomic single-use consume (C9): conditional UPDATE where use_count < max_uses
+        const consumed = await this.shareLinksRepo.consumeUnique(em, code);
+        if (!consumed) {
+          throw new GoneException({
+            message: 'Link has already been used',
+            errorCode: 'LINK_USED',
+          });
+        }
 
-      // Step 3: BR-006 re-check inside tx for newly-created users (race safety)
-      const coachProfileInTx = await em.findOne(CoachProfile, { where: { userId: resolvedUserId } });
-      if (coachProfileInTx && coachProfileInTx.trainerId !== link.trainerId) {
+        // Step 2: Resolve user ID (create new user if anonymous)
+        let resolvedUserId: string;
+        let createdUserData: NewPrincipalSession | undefined;
+
+        if (ctx.principalId) {
+          resolvedUserId = ctx.principalId;
+        } else if (existingUserId) {
+          resolvedUserId = existingUserId;
+        } else {
+          // Create new coach user inside the transaction (atomic with consume)
+          const newUser = await em.save(User, em.create(User, {
+            email: dto.email!,
+            passwordHash: passwordHash!,
+            role: UserRole.COACH,
+            status: UserStatus.ACTIVE,
+            emailVerified: false,
+          }));
+          resolvedUserId = newUser.id;
+          createdUserData = {
+            id: newUser.id,
+            email: newUser.email,
+            role: newUser.role,
+            status: newUser.status,
+            emailVerified: newUser.emailVerified,
+            mustChangePassword: newUser.mustChangePassword,
+          };
+        }
+
+        // Step 3: BR-006 re-check inside tx for newly-created users (race safety)
+        // BR-006 relies on the unique user_id constraint on coach_profiles as the race
+        // backstop — concurrent accepts will have one INSERT fail with 23505 (M-1 fix).
+        const coachProfileInTx = await em.findOne(CoachProfile, { where: { userId: resolvedUserId } });
+        if (coachProfileInTx && coachProfileInTx.trainerId !== link.trainerId) {
+          throw new ConflictException({
+            message: 'Coach is already active under another trainer',
+            errorCode: 'COACH_ALREADY_ACTIVE_ELSEWHERE',
+          });
+        }
+
+        // Step 4: Create or update CoachProfile
+        let profileId: string;
+        if (coachProfileInTx) {
+          coachProfileInTx.trainerId = link.trainerId;
+          await em.save(CoachProfile, coachProfileInTx);
+          profileId = coachProfileInTx.id;
+        } else {
+          const profile = await em.save(CoachProfile, em.create(CoachProfile, {
+            userId: resolvedUserId,
+            trainerId: link.trainerId,
+          }));
+          profileId = profile.id;
+        }
+
+        return { userId: resolvedUserId, coachProfileId: profileId, createdUser: createdUserData };
+      });
+
+      newPrincipal = createdUser;
+      return { alreadyAssociated: false, userId, coachProfileId, newPrincipal };
+    } catch (err: any) {
+      // M-1: catch Postgres 23505 on the CoachProfile INSERT (race condition where two
+      // concurrent accepts for different trainers both see null CoachProfile and both try
+      // to INSERT). BR-006 relies on the unique user_id constraint as the race backstop.
+      // Map to 409 COACH_ALREADY_ACTIVE_ELSEWHERE instead of letting a raw 500 escape.
+      if (err?.code === '23505' || err?.driverError?.code === '23505') {
+        this.logger.warn(
+          `[BR-006] M-1 race: concurrent coach accept 23505 for code=${code} — mapping to 409`,
+        );
         throw new ConflictException({
           message: 'Coach is already active under another trainer',
           errorCode: 'COACH_ALREADY_ACTIVE_ELSEWHERE',
         });
       }
-
-      // Step 4: Create or update CoachProfile
-      let profileId: string;
-      if (coachProfileInTx) {
-        coachProfileInTx.trainerId = link.trainerId;
-        await em.save(CoachProfile, coachProfileInTx);
-        profileId = coachProfileInTx.id;
-      } else {
-        const profile = await em.save(CoachProfile, em.create(CoachProfile, {
-          userId: resolvedUserId,
-          trainerId: link.trainerId,
-        }));
-        profileId = profile.id;
-      }
-
-      return { userId: resolvedUserId, coachProfileId: profileId };
-    });
-
-    return { alreadyAssociated: false, userId, coachProfileId };
+      throw err;
+    }
   }
 }
