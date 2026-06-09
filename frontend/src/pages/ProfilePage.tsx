@@ -31,6 +31,9 @@ interface ProfileFormValues {
 export default function ProfilePage() {
   const { data: me } = useMe();
   const role = me?.role ?? 'PLAYER';
+  // Super Admin has no role-specific profile, so name/phone/photo have nowhere to
+  // persist. Show their account as read-only rather than letting them "save" no-ops.
+  const canEditProfile = role !== 'SUPER_ADMIN';
   const qc = useQueryClient();
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
 
@@ -186,29 +189,33 @@ export default function ProfilePage() {
               )}
             </div>
 
-            {/* Photo upload */}
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/png,image/jpeg,image/jpg,image/webp"
-              onChange={onPhotoSelected}
-              style={{ display: 'none' }}
-              aria-hidden="true"
-            />
-            <Button
-              type="button"
-              size="sm"
-              variant="secondary"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={photoMutation.isPending}
-              style={{ width: '100%', maxWidth: '160px', marginBottom: 'var(--space-lg)' }}
-            >
-              {photoMutation.isPending
-                ? 'Uploading…'
-                : profile?.photoUrl
-                  ? 'Change photo'
-                  : 'Upload photo'}
-            </Button>
+            {/* Photo upload — Super Admin has no profile to store a photo */}
+            {canEditProfile && (
+              <>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/png,image/jpeg,image/jpg,image/webp"
+                  onChange={onPhotoSelected}
+                  style={{ display: 'none' }}
+                  aria-hidden="true"
+                />
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={photoMutation.isPending}
+                  style={{ width: '100%', maxWidth: '160px', marginBottom: 'var(--space-lg)' }}
+                >
+                  {photoMutation.isPending
+                    ? 'Uploading…'
+                    : profile?.photoUrl
+                      ? 'Change photo'
+                      : 'Upload photo'}
+                </Button>
+              </>
+            )}
 
             {/* Read-only locked rows */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>
@@ -285,6 +292,25 @@ export default function ProfilePage() {
               </div>
             )}
 
+            {!canEditProfile && (
+              <p
+                role="note"
+                style={{
+                  fontFamily: 'var(--font-body)',
+                  fontSize: 'var(--text-body)',
+                  color: 'var(--text-secondary)',
+                  background: 'var(--bg)',
+                  border: '1px solid var(--border-soft)',
+                  borderRadius: 'var(--radius-sm)',
+                  padding: 'var(--space-md)',
+                }}
+              >
+                Super Admin accounts have no editable profile fields. Your email and
+                role are shown for reference.
+              </p>
+            )}
+
+            {canEditProfile && (
             <form
               onSubmit={handleSubmit(onSubmit)}
               noValidate
@@ -464,6 +490,7 @@ export default function ProfilePage() {
                 </Button>
               </div>
             </form>
+            )}
           </div>
         </div>
       </div>
