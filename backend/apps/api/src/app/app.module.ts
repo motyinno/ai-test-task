@@ -18,6 +18,7 @@ import { PlayersModule } from '../modules/players/players.module';
 import { CoachesModule } from '../modules/coaches/coaches.module';
 import { ApprovalsModule } from '../modules/approvals/approvals.module';
 import { ChildAccountModule } from '../modules/child-account/child-account.module';
+import { TrainersModule } from '../modules/trainers/trainers.module';
 import { HealthController } from '../shared/health/health.controller';
 import { SessionTestController } from '../shared/session/session-test.controller';
 
@@ -38,6 +39,7 @@ const testControllers =
     CoachesModule,
     ApprovalsModule,
     ChildAccountModule,
+    TrainersModule,
     AuthzModule,
     ThrottlerModule.forRoot([
       {

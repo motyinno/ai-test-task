@@ -5,6 +5,7 @@ import { CoachesService } from './coaches.service';
 import { CoachesController } from './coaches.controller';
 import { ShareLinksModule } from '../sharelinks/sharelinks.module';
 import { EmailModule } from '../../shared/integrations/email/email.module';
+import { AvailabilityModule } from '../availability/availability.module';
 
 @Module({
   imports: [
@@ -13,6 +14,7 @@ import { EmailModule } from '../../shared/integrations/email/email.module';
     TypeOrmModule.forFeature([CoachProfile]),
     ShareLinksModule,
     EmailModule,
+    AvailabilityModule,
   ],
   controllers: [CoachesController],
   providers: [CoachesService],
