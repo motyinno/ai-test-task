@@ -265,19 +265,30 @@ Within this single epic, recommended build order (mirrors §13 + dependency real
 
 ## Gap Analysis
 
-Open items needing client/owner input (do not block Phase A–C; flag before dependent phases):
+### Resolved Gaps (GR1–GR4, 2026-06-09)
 
-- [ ] **Q-01.04 (P1):** Full list of automated emails required (welcome, reset, verify, invites, approvals, child-blocked, …). Needed before finalizing EmailService.
+| ID | Resolution |
+|----|------------|
+| **Q-01.01** ✅ | `SkillLevel` enum `BEGINNER\|INTERMEDIATE\|ADVANCED\|ELITE`; Postgres enum column on `PlayerProfile.skillLevel`; `@IsEnum(SkillLevel)` on UpdateProfileDto; migration GR1. |
+| **Q-01.02** ✅ | Store `dateOfBirth` (ISO date) on `PlayerProfile`; derive `age` + `ageGroup` (U6/U8/U10/U12/U14/U16/U18) at read via pure `age.util.ts`. Drop `age` integer. `CreateChildDto` validates derived age 1–18 (BR-017). Migration GR2 adds `date_of_birth`, drops `age`. |
+| **Q-01.04** ✅ | Nodemailer SMTP adapter + full `TemplateRegistry` (10 templates: welcome, password-reset, email-verify, trainer-invite, coach-invite, approval-request, approval-result approved/denied, child-sharelink-blocked, availability-override). Provider selection via `EMAIL_PROVIDER` env; default=log keeps tests green. |
+| **Q-01.06** ✅ | `NotificationsModule` added: `Notification` entity (AVAILABILITY_OVERRIDE\|GENERAL); `GET /api/v1/notifications`; `POST /api/v1/notifications/:id/read`. `AvailabilityService` override path creates in-app notification + sends override email (best-effort). Migration GR4 adds `notifications` table. |
+
+### Epic Boundary Decisions (no code change in Epic-01)
+
+| Gap | Decision | Contract |
+|-----|----------|----------|
+| **Epic-05 (payment fields)** | `TrainerProfile.stripeAccountId` stays as nullable placeholder; Epic-05 owns all payment business logic. Epic-01 stores, never writes payment data. | Boundary: Epic-05 implementors may add stripe/subscription/fee columns to `trainer_profiles`; do not modify Epic-01 profile entities without Epic-05 coordination. |
+| **Epic-08 (camp→registration mapping)** | `JoinViaLinkDto` carries registration fields as-is (email, password, playerName, age, gender). Epic-08 will map camp/eval submission → those fields for pre-fill. `JoinViaLinkDto.age` remains until Epic-08 mapping ships; `PlayerProfile.dateOfBirth` is the canonical storage. | Boundary: Epic-08 implementors will source `dateOfBirth` from camp form and pass it in a new field; `age` in JoinViaLinkDto is an interim bridge. |
+
+### Remaining Open Items
+
 - [ ] **Q-01.07 (P2):** Session timeout duration (1d / 7d / 30d?). Affects NFR-003/SEC-002. Default assumed pending answer.
-- [ ] **Q-01.01 (P2):** Skill level definitions (Beginner…Elite or custom?). Affects PlayerProfile.skillLevel enum.
-- [ ] **Q-01.02 (P2):** Age group definition (birth year / age range / grade). Affects child age model + filters.
-- [ ] **Q-01.06 (P2):** Should coach be notified when availability is overridden? Affects FR-043 notification.
-- [ ] **Camp-to-User (FR-032):** Depends on Epic-08 form schema — confirm field mapping for pre-fill. Cross-epic dependency.
-- [ ] **Payments fields (Epic-05):** Trainer Stripe/subscription/fee fields stored here but logic lives in Epic-05 — confirm field ownership.
-- [ ] **Token economy:** "Tokens" referenced (child token spend) but token issuance/balance model is not defined in this epic — confirm source epic.
+- [ ] **Camp-to-User (FR-032):** Epic-08 will implement field mapping (see boundary above).
+- [ ] **Token economy:** "Tokens" referenced (child token spend) but token issuance/balance model not defined in this epic — confirm source epic.
 - [ ] **Reactivation of deleted child data:** US-01.04 soft-deletes child↔trainer data on removal — confirm whether re-adding restores history or starts fresh.
 
-**Resolved (no longer gaps):** minor account model (D-2), email verification gating (D-3), epic scope (D-1).
+**Previously resolved (no longer gaps):** minor account model (D-2), email verification gating (D-3), epic scope (D-1), Q-01.01/02/04/06 (see above).
 
 ---
 

@@ -379,7 +379,9 @@ class ShareLinkPreviewDto {
 }
 class CreateChildDto {
   @ApiProperty() @IsNotEmpty() @MaxLength(100) name: string;
-  @ApiProperty({ minimum: 1, maximum: 18 }) @IsInt() @Min(1) @Max(18) age: number;  // BR-017
+  /** Q-01.02 RESOLVED: dateOfBirth replaces age integer. Derived age must be 1–18 (BR-017). */
+  @ApiProperty({ description: 'ISO date (YYYY-MM-DD). Derived age must be 1–18 (BR-017).', example: '2012-05-15' })
+  @IsDateString() @IsAgeInRange(1, 18) dateOfBirth: string;
   @ApiProperty({ enum: ['MALE','FEMALE','OTHER'] }) @IsEnum(['MALE','FEMALE','OTHER']) gender: string;
   @ApiPropertyOptional() @IsOptional() school?: string;
   @ApiPropertyOptional({ type: [String], description: 'trainerIds to associate now' })
@@ -387,6 +389,11 @@ class CreateChildDto {
   @ApiPropertyOptional({ description: 'create a constrained child sub-login' })
   @IsOptional() @IsBoolean() createLogin?: boolean;
 }
+/**
+ * Q-01.01 RESOLVED: SkillLevel enum
+ * Applied to UpdateProfileDto.skillLevel and PlayerProfile entity.
+ */
+enum SkillLevel { BEGINNER = 'BEGINNER', INTERMEDIATE = 'INTERMEDIATE', ADVANCED = 'ADVANCED', ELITE = 'ELITE' }
 class AddChildTrainerDto {              // Option A code OR Option B existing trainer
   @ApiPropertyOptional() @IsOptional() shareLinkCode?: string;
   @ApiPropertyOptional() @IsOptional() @IsUUID() trainerId?: string;
@@ -505,6 +512,36 @@ class ApprovalRequestDto {
 ApprovalRequest creation on checkout + payment processing (Epic-02/05); ShareLink usage
 analytics consumption (Epic-06); Camp-to-User pre-fill (Epic-08).
 
-**Open gaps affecting DTOs:** skill-level enum (Q-01.01), age-group model (Q-01.02),
-full email list (Q-01.04), coach-override notification (Q-01.06), Epic-05 payment field
-ownership (TrainerProfile Stripe/subscription fields).
+**Resolved gaps (GR1–GR4, 2026-06-09):**
+
+| Gap | API change |
+|-----|------------|
+| Q-01.01 ✅ | `PlayerProfile.skillLevel` is now `SkillLevel` enum (BEGINNER\|INTERMEDIATE\|ADVANCED\|ELITE). `UpdateProfileDto.skillLevel` + `ProfileResponseDto.skillLevel` use the enum. |
+| Q-01.02 ✅ | `CreateChildDto.age` → `dateOfBirth` (ISO date). `ProfileResponseDto` and `ChildProfileResponse` now expose `dateOfBirth`, `age` (derived), `ageGroup` (U6–U18 derived). |
+| Q-01.04 ✅ | `EmailService` supports `template` + `data` fields. Full `TemplateRegistry` with 10 template IDs. `EMAIL_PROVIDER=smtp` activates Nodemailer adapter. |
+| Q-01.06 ✅ | New endpoints: `GET /api/v1/notifications` + `POST /api/v1/notifications/:id/read`. Coach receives `AVAILABILITY_OVERRIDE` notification on override. |
+
+**New endpoints (GR4):**
+```
+GET  /api/v1/notifications           — list authenticated user's notifications (sorted by createdAt DESC)
+POST /api/v1/notifications/:id/read  — mark notification as read; 404 if not owned by caller
+```
+
+**Response shape for notifications:**
+```typescript
+interface Notification {
+  id: string;      // UUID
+  userId: string;  // recipient
+  type: 'AVAILABILITY_OVERRIDE' | 'GENERAL';
+  title: string;
+  body: string;
+  read: boolean;
+  createdAt: string; // ISO timestamp
+}
+// GET /notifications → { data: Notification[] }
+// POST /notifications/:id/read → Notification
+```
+
+**Epic-05 boundary:** `TrainerProfile.stripeAccountId` is a nullable placeholder. Epic-05 owns payment logic.
+
+**Epic-08 boundary:** `JoinViaLinkDto.age` remains as bridge field; Epic-08 will map camp/eval → `dateOfBirth`.

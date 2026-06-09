@@ -212,13 +212,22 @@ registration hot path (NFR-004).
 - [x] **Horizontal scaling:** stateless app instances (session/context external in
   Postgres/CLS); scheduler safe via advisory lock (A2).
 
-#### Open Gaps (architectural impact noted; do not block foundation phases)
+#### Open Gaps — Resolved (GR1–GR4, 2026-06-09)
 
-| ID | Gap | Architectural impact |
-|----|-----|----------------------|
-| Q-01.01 | Skill-level definitions | `PlayerProfile.skillLevel` enum shape |
-| Q-01.02 | Age-group definition | child age model + availability filters |
-| Q-01.04 | Automated email list | `EmailModule` port surface |
-| Q-01.06 | Coach override notification | FR-043 notification path |
-| Epic-08 | Camp-to-User field mapping | FR-032 conversion DTO |
-| Epic-05 | Payment field ownership | `TrainerProfile` Stripe/subscription/fee field ownership boundary |
+| ID | Gap | Resolution | Architectural impact |
+|----|-----|------------|----------------------|
+| **Q-01.01** ✅ | Skill-level definitions | `SkillLevel` enum `BEGINNER\|INTERMEDIATE\|ADVANCED\|ELITE`; Postgres enum column on `player_profiles.skill_level`; migration GR1 | Trainer-set, nullable; `@IsEnum` on DTO; see `skill-level.enum.ts` |
+| **Q-01.02** ✅ | Age-group definition | Store `dateOfBirth` (date); derive `age` + `ageGroup` (U6–U18) at read via pure `age.util.ts`; drop `age` integer; `CreateChildDto` validates derived age 1–18 (BR-017) | Migration GR2 adds `date_of_birth`, drops `age`; `deriveAge(dob, asOf)` + `deriveAgeGroup(dob, asOf)` |
+| **Q-01.04** ✅ | Automated email list | Nodemailer SMTP adapter (env-selected); full `TemplateRegistry` (10 templates); default dev/log adapter keeps tests green | `SmtpEmailAdapter`, `template-registry.ts`; EMAIL_PROVIDER=smtp activates real send |
+| **Q-01.06** ✅ | Coach override notification | `NotificationsModule` (in-app `Notification` entity, repo, service, controller); `AvailabilityService` override path creates AVAILABILITY_OVERRIDE notification + sends availability-override email (best-effort) | Migration GR4 adds `notifications` table; `GET /api/v1/notifications`, `POST /api/v1/notifications/:id/read` |
+| **Epic-05** (boundary) | Payment field ownership | `TrainerProfile.stripeAccountId` stays as nullable placeholder; Epic-05 owns all payment business logic. Epic-01 stores, never writes payment data. | No code change; documented boundary only |
+| **Epic-08** (boundary) | Camp-to-User field mapping | `JoinViaLinkDto` carries registration fields as-is; Epic-08 will add pre-fill mapping of camp/eval submission → those fields. `dateOfBirth` will be sourced from this mapping. | Epic-08 owned; interim contract: `JoinViaLinkDto.age` remains until mapping is built |
+
+> **New module added:** `modules/notifications/` — lightweight in-app notification channel (Q-01.06).
+> Future epics (approvals, events) can reuse `NotificationsService.create(...)` directly.
+>
+> **New module placement additions:**
+>
+> | Module | Path | Type | Responsibility |
+> |--------|------|------|----------------|
+> | NotificationsModule | `modules/notifications/` | feature | In-app notifications (AVAILABILITY_OVERRIDE + GENERAL types); per-user; mark-read |
