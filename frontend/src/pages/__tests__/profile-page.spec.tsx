@@ -65,12 +65,13 @@ describe('ProfilePage', () => {
     expect(emailEl).toBeInTheDocument();
   });
 
-  it('renders editable name fields', async () => {
+  it('renders editable name field (single Name, role with a name)', async () => {
     server.use(
-      http.get('/api/v1/me/profile', () => HttpResponse.json(mockProfile)),
+      http.get('/api/v1/me/profile', () => HttpResponse.json({ ...mockProfile, role: 'TRAINER' })),
     );
 
-    render(makeWrapper());
+    // TRAINER/PLAYER have a single display name; COACH has none in the data model.
+    render(makeWrapper('TRAINER'));
 
     await waitFor(() => {
       expect(screen.getByDisplayValue('Bob')).toBeInTheDocument();
@@ -91,14 +92,14 @@ describe('ProfilePage', () => {
 
   it('submits PATCH /me/profile and shows confirmation', async () => {
     server.use(
-      http.get('/api/v1/me/profile', () => HttpResponse.json(mockProfile)),
+      http.get('/api/v1/me/profile', () => HttpResponse.json({ ...mockProfile, role: 'TRAINER' })),
       http.get('/api/v1/auth/csrf', () => HttpResponse.json({ token: 'csrf-test' })),
       http.patch('/api/v1/me/profile', () =>
-        HttpResponse.json({ ...mockProfile, firstName: 'Robert' }),
+        HttpResponse.json({ ...mockProfile, role: 'TRAINER', firstName: 'Robert' }),
       ),
     );
 
-    render(makeWrapper());
+    render(makeWrapper('TRAINER'));
 
     await waitFor(() => screen.getByDisplayValue('Bob'));
 

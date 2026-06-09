@@ -161,6 +161,8 @@ export class ProfileService {
       id: profile?.id ?? user.id,
       businessName: profile?.businessName,
       trainerName: profile?.trainerName,
+      // Single display name surfaced as firstName for the unified profile form.
+      firstName: profile?.trainerName ?? undefined,
       phone: profile?.phone ?? undefined,
       photoUrl: profile?.photoUrl ?? undefined,
     };
@@ -192,6 +194,8 @@ export class ProfileService {
       id: profile?.id ?? user.id,
       parentUserId: profile?.parentUserId ?? undefined,
       name: profile?.name,
+      // Single display name surfaced as firstName for the unified profile form.
+      firstName: profile?.name ?? undefined,
       dateOfBirth: profile?.dateOfBirth ?? undefined,
       age: deriveAge(profile?.dateOfBirth) ?? undefined,
       ageGroup: deriveAgeGroup(profile?.dateOfBirth) ?? undefined,
@@ -235,6 +239,8 @@ export class ProfileService {
     if (!profile) return;
 
     const updates: Partial<PlayerProfile> = {};
+    // firstName maps to the player's single display name (mirrors users.service).
+    if (dto.firstName) updates.name = dto.firstName;
     if (dto.school !== undefined) updates.school = dto.school ?? null;
     if (dto.jerseyNumber !== undefined) updates.jerseyNumber = dto.jerseyNumber ?? null;
     if (dto.skillLevel !== undefined) updates.skillLevel = dto.skillLevel ?? null;

@@ -12,7 +12,11 @@ import { StorageModule } from '../../shared/integrations/storage/storage.module'
 @Module({
   imports: [
     TypeOrmModule.forFeature([User, TrainerProfile, CoachProfile, PlayerProfile]),
-    MulterModule.register({ dest: './uploads' }),
+    // Memory storage (no `dest`) so `file.buffer` is populated and StorageService
+    // is the single source of truth for persisting + serving the file. With
+    // `dest` (disk storage) buffer is undefined and multer dumps the upload to
+    // ./uploads/<hash> with no served URL — the original "photo not visible" bug.
+    MulterModule.register({}),
     StorageModule,
   ],
   controllers: [ProfileController],

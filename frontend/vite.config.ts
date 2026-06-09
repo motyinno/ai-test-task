@@ -17,6 +17,12 @@ export default defineConfig({
         target: 'http://localhost:3000',
         changeOrigin: true,
       },
+      // Uploaded files (profile photos, logos) are served by the backend at
+      // /local-storage/* — forward them so images resolve in dev.
+      '/local-storage': {
+        target: 'http://localhost:3000',
+        changeOrigin: true,
+      },
     },
   },
   test: {

@@ -13,8 +13,8 @@ import { useMe } from '@/providers/auth-provider';
 const PROFILE_QUERY_KEY = ['profile', 'me'] as const;
 
 interface ProfileFormValues {
+  // Single display name (maps to TrainerProfile.trainerName / PlayerProfile.name).
   firstName: string;
-  lastName: string;
   phone: string;
   // Coach
   bio: string;
@@ -24,8 +24,6 @@ interface ProfileFormValues {
   school: string;
   jerseyNumber: string;
   skillLevel: SkillLevel | '';
-  // Parent
-  emergencyContact: string;
 }
 
 export default function ProfilePage() {
@@ -48,7 +46,6 @@ export default function ProfilePage() {
     if (profile) {
       reset({
         firstName: profile.firstName ?? '',
-        lastName: profile.lastName ?? '',
         phone: profile.phone ?? '',
         bio: profile.bio ?? '',
         credentials: profile.credentials ?? '',
@@ -56,7 +53,6 @@ export default function ProfilePage() {
         school: profile.school ?? '',
         jerseyNumber: profile.jerseyNumber ?? '',
         skillLevel: profile.skillLevel ?? '',
-        emergencyContact: profile.emergencyContact ?? '',
       });
     }
   }, [profile, reset]);
@@ -67,6 +63,10 @@ export default function ProfilePage() {
       qc.setQueryData(PROFILE_QUERY_KEY, updated);
       setSaveMessage('Profile updated');
       setTimeout(() => setSaveMessage(null), 3000);
+    },
+    onError: (err) => {
+      setSaveMessage(err instanceof Error ? err.message : 'Failed to update profile');
+      setTimeout(() => setSaveMessage(null), 5000);
     },
   });
 
@@ -91,11 +91,15 @@ export default function ProfilePage() {
   };
 
   const onSubmit = (values: ProfileFormValues) => {
-    const dto: UpdateProfileDto = {
-      firstName: values.firstName || undefined,
-      lastName: values.lastName || undefined,
-      phone: values.phone || undefined,
-    };
+    const dto: UpdateProfileDto = {};
+    // Name maps to the single display name; only trainer/player have one.
+    if (role === 'TRAINER' || role === 'PLAYER') {
+      dto.firstName = values.firstName || undefined;
+    }
+    // Phone column exists only on TrainerProfile.
+    if (role === 'TRAINER') {
+      dto.phone = values.phone || undefined;
+    }
     if (role === 'COACH') {
       dto.bio = values.bio || undefined;
       dto.credentials = values.credentials || undefined;
@@ -105,9 +109,6 @@ export default function ProfilePage() {
       dto.school = values.school || undefined;
       dto.jerseyNumber = values.jerseyNumber || undefined;
       dto.skillLevel = (values.skillLevel || undefined) as SkillLevel | undefined;
-    }
-    if (role === 'PLAYER' && !me?.isChild) {
-      dto.emergencyContact = values.emergencyContact || undefined;
     }
     updateMutation.mutate(dto);
   };
@@ -316,27 +317,18 @@ export default function ProfilePage() {
               noValidate
               style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}
             >
-              <div
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: '1fr 1fr',
-                  gap: 'var(--space-md)',
-                }}
-              >
+              {(role === 'TRAINER' || role === 'PLAYER') && (
                 <Input
                   id="firstName"
-                  label="First Name"
+                  label="Name"
                   error={errors.firstName?.message}
                   {...register('firstName')}
                 />
-                <Input
-                  id="lastName"
-                  label="Last Name"
-                  {...register('lastName')}
-                />
-              </div>
+              )}
 
-              <Input id="phone" label="Phone" type="tel" {...register('phone')} />
+              {role === 'TRAINER' && (
+                <Input id="phone" label="Phone" type="tel" {...register('phone')} />
+              )}
 
               {role === 'COACH' && (
                 <>
@@ -474,14 +466,6 @@ export default function ProfilePage() {
                     </div>
                   )}
                 </>
-              )}
-
-              {role === 'PLAYER' && !me?.isChild && (
-                <Input
-                  id="emergencyContact"
-                  label="Emergency Contact"
-                  {...register('emergencyContact')}
-                />
               )}
 
               <div style={{ display: 'flex', justifyContent: 'flex-end' }}>

@@ -37,6 +37,7 @@ async function request<T>(
   path: string,
   body?: unknown,
   extraHeaders?: Record<string, string>,
+  retryOnCsrf = true,
 ): Promise<T> {
   const isUnsafe = ['POST', 'PATCH', 'PUT', 'DELETE'].includes(method.toUpperCase());
 
@@ -81,6 +82,21 @@ async function request<T>(
       errorCode?: string;
       details?: Array<{ field?: string; message: string }>;
     };
+
+    // The CSRF token is cached module-globally and rotates whenever the server
+    // regenerates the session (login, context switch, impersonation). A stale
+    // cached token yields a 403 CSRF_INVALID. Clear the cache and retry once
+    // with a freshly minted token before surfacing the error.
+    if (
+      retryOnCsrf &&
+      isUnsafe &&
+      res.status === 403 &&
+      envelope.errorCode === 'CSRF_INVALID'
+    ) {
+      clearCsrfCache();
+      return request<T>(method, path, body, extraHeaders, false);
+    }
+
     throw new ApiError(
       envelope.message ?? res.statusText,
       envelope.statusCode ?? res.status,
