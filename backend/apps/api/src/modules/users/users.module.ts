@@ -9,11 +9,19 @@ import { TrainerProfile } from './entities/trainer-profile.entity';
 import { CoachProfile } from './entities/coach-profile.entity';
 import { PlayerProfile } from './entities/player-profile.entity';
 import { UserDeletionLog } from './entities/user-deletion-log.entity';
+import { InvitationToken } from '../auth/entities/invitation-token.entity';
 import { PasswordService } from '../../shared/crypto/password.service';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([User, TrainerProfile, CoachProfile, PlayerProfile, UserDeletionLog]),
+    TypeOrmModule.forFeature([
+      User,
+      TrainerProfile,
+      CoachProfile,
+      PlayerProfile,
+      UserDeletionLog,
+      InvitationToken,
+    ]),
     EmailModule,
   ],
   controllers: [UsersController],

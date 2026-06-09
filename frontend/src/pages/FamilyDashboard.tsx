@@ -244,8 +244,18 @@ function validateAge(dob: string): string | true {
 // ─── Add trainer form ─────────────────────────────────────────────────────────
 
 interface AddTrainerFormValues {
-  trainerId?: string;
   shareLinkCode?: string;
+}
+
+/**
+ * Parents receive either a raw share-link code (e.g. "ABC123") or a full join
+ * link (e.g. "https://app/join/ABC123"). Accept both and extract the code so
+ * they never have to know a trainer's internal UUID.
+ */
+function extractShareCode(input: string): string {
+  const trimmed = input.trim();
+  const match = trimmed.match(/\/join\/([^/?#\s]+)/i);
+  return (match ? match[1] : trimmed).trim();
 }
 
 // ─── Main page ────────────────────────────────────────────────────────────────
@@ -284,7 +294,7 @@ export default function FamilyDashboard() {
 
   const addTrainerMutation = useMutation({
     mutationFn: ({ childId, dto }: { childId: string; dto: AddTrainerFormValues }) =>
-      familyApi.addTrainer(childId, { trainerId: dto.trainerId, shareLinkCode: dto.shareLinkCode }),
+      familyApi.addTrainer(childId, { shareLinkCode: dto.shareLinkCode }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: CHILDREN_QUERY_KEY });
       setAddTrainerTarget(null);
@@ -321,7 +331,12 @@ export default function FamilyDashboard() {
   const onAddTrainer = (values: AddTrainerFormValues) => {
     if (!addTrainerTarget) return;
     setAddTrainerError(null);
-    addTrainerMutation.mutate({ childId: addTrainerTarget.id, dto: values });
+    const code = extractShareCode(values.shareLinkCode ?? '');
+    if (!code) {
+      setAddTrainerError('Enter the share link code from your trainer.');
+      return;
+    }
+    addTrainerMutation.mutate({ childId: addTrainerTarget.id, dto: { shareLinkCode: code } });
   };
 
   const children = data ?? [];
@@ -627,24 +642,11 @@ export default function FamilyDashboard() {
             </div>
           )}
           <Input
-            id="addTrainerId"
-            label="Trainer ID (UUID)"
-            {...addTrainerForm.register('trainerId')}
-          />
-          <div
-            style={{
-              fontFamily: 'var(--font-body)',
-              fontSize: 'var(--text-caption)',
-              color: 'var(--muted)',
-              textAlign: 'center',
-            }}
-          >
-            — or —
-          </div>
-          <Input
             id="addTrainerCode"
             label="Share Link Code"
-            {...addTrainerForm.register('shareLinkCode')}
+            hint="Ask your trainer for their share link, then paste the code or the full link here."
+            {...addTrainerForm.register('shareLinkCode', { required: 'Share link code is required' })}
+            error={addTrainerForm.formState.errors.shareLinkCode?.message}
           />
           <Button
             type="submit"

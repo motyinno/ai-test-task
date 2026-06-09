@@ -9,6 +9,7 @@ import { MeResponseDto } from './dto/me-response.dto';
 import { User, UserRole } from '../users/entities/user.entity';
 import { PasswordResetToken } from './entities/password-reset-token.entity';
 import { EmailVerificationToken } from './entities/email-verification-token.entity';
+import { InvitationToken } from './entities/invitation-token.entity';
 import { PasswordService } from '../../shared/crypto/password.service';
 import { EmailService } from '../../shared/integrations/email/email.service';
 
@@ -29,6 +30,8 @@ export class AuthService {
     private readonly resetTokenRepo: Repository<PasswordResetToken>,
     @InjectRepository(EmailVerificationToken)
     private readonly verifyTokenRepo: Repository<EmailVerificationToken>,
+    @InjectRepository(InvitationToken)
+    private readonly invitationTokenRepo: Repository<InvitationToken>,
     @InjectDataSource()
     private readonly dataSource: DataSource,
   ) {}
@@ -155,6 +158,72 @@ export class AuthService {
     });
 
     // H4: Invalidate all existing sessions for this user
+    await this.invalidateUserSessions(record.userId);
+  }
+
+  /**
+   * Validate an invitation token without consuming it — used to preview the
+   * invite (e.g. show the invitee's email) before they set a password.
+   * Returns the associated user's email. Throws a typed error otherwise.
+   */
+  async validateInvitation(token: string): Promise<{ email: string }> {
+    const record = await this.invitationTokenRepo.findOne({
+      where: { token },
+      relations: { user: true },
+    });
+
+    if (!record) {
+      throw new BadRequestException({ message: 'Token is invalid', errorCode: 'TOKEN_INVALID' });
+    }
+    if (record.usedAt) {
+      throw new BadRequestException({ message: 'Token has already been used', errorCode: 'TOKEN_USED' });
+    }
+    if (record.expiresAt < new Date()) {
+      throw new BadRequestException({ message: 'Token has expired', errorCode: 'TOKEN_EXPIRED' });
+    }
+
+    const email = record.user?.email
+      ?? (await this.userRepo.findOne({ where: { id: record.userId } }))?.email
+      ?? '';
+    return { email };
+  }
+
+  /**
+   * Accept an invitation: set the invitee's password, mark the email verified
+   * (possession of the emailed token proves mailbox control), clear any
+   * must-change-password flag, and atomically single-use-consume the token.
+   * Mirrors confirmPasswordReset's race-safe consumption (H3).
+   */
+  async acceptInvitation(token: string, newPassword: string): Promise<void> {
+    const record = await this.invitationTokenRepo.findOne({ where: { token } });
+
+    if (!record) {
+      throw new BadRequestException({ message: 'Token is invalid', errorCode: 'TOKEN_INVALID' });
+    }
+    if (record.usedAt) {
+      throw new BadRequestException({ message: 'Token has already been used', errorCode: 'TOKEN_USED' });
+    }
+    if (record.expiresAt < new Date()) {
+      throw new BadRequestException({ message: 'Token has expired', errorCode: 'TOKEN_EXPIRED' });
+    }
+
+    // H3: Atomic single-use consumption — conditional UPDATE WHERE usedAt IS NULL.
+    const consumeResult = await this.invitationTokenRepo.update(
+      { id: record.id, usedAt: IsNull() },
+      { usedAt: new Date() },
+    );
+    if (!consumeResult.affected || consumeResult.affected === 0) {
+      throw new BadRequestException({ message: 'Token has already been used', errorCode: 'TOKEN_USED' });
+    }
+
+    const newHash = await this.passwordService.hash(newPassword);
+    await this.userRepo.update(record.userId, {
+      passwordHash: newHash,
+      mustChangePassword: false,
+      emailVerified: true,
+    });
+
+    // H4: Invalidate any pre-existing sessions for safety.
     await this.invalidateUserSessions(record.userId);
   }
 

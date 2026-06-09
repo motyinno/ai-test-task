@@ -113,11 +113,21 @@ export class ShareLinksController {
 
   // ─── Mapper ───────────────────────────────────────────────────────────────
 
+  /**
+   * Public base URL of the web app, used to build a clickable join link that
+   * trainers can hand to parents. Falls back to the dev Vite origin.
+   */
+  private get appBaseUrl(): string {
+    return (process.env['APP_BASE_URL'] ?? 'http://localhost:5173').replace(/\/$/, '');
+  }
+
   private toResponseDto(link: ShareLink): ShareLinkResponseDto {
     return {
       id: link.id,
       code: link.code,
-      url: `/api/v1/join/${link.code}`,
+      // User-facing join page (frontend route), not the API endpoint, so the
+      // trainer can share a link a parent can actually open.
+      url: `${this.appBaseUrl}/join/${link.code}`,
       type: link.type,
       trainerId: link.trainerId,
       targetEmail: link.targetEmail,

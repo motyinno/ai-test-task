@@ -6,12 +6,13 @@
  * - Main content area
  * Nav items are role-sensitive (shown based on user role).
  */
-import React from 'react';
+import React, { useState } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { useMe, useLogout } from '@/providers/auth-provider';
 import { ImpersonationBannerSlot } from '@/features/impersonation/ImpersonationBanner';
 import { ContextSwitcher } from '@/features/context/ContextSwitcher';
 import { NotificationsBell } from '@/features/notifications/NotificationsBell';
+import { ShareLinkSheet } from '@/features/sharelinks/ShareLinkSheet';
 import { Button } from '@/components/ui/Button';
 
 interface NavItem {
@@ -46,6 +47,7 @@ export function AppShell() {
   const logout = useLogout();
   const navigate = useNavigate();
   const role = me?.role ?? '';
+  const [shareOpen, setShareOpen] = useState(false);
 
   const visibleNavItems = NAV_ITEMS.filter((item) => item.roles.includes(role));
 
@@ -102,8 +104,17 @@ export function AppShell() {
             ))}
           </nav>
 
-          {/* Right rail: notifications + logout */}
+          {/* Right rail: share link (trainers) + notifications + logout */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)' }}>
+            {role === 'TRAINER' && (
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => setShareOpen(true)}
+              >
+                Share Link
+              </Button>
+            )}
             <NotificationsBell />
             <Button
               size="sm"
@@ -115,6 +126,11 @@ export function AppShell() {
             </Button>
           </div>
         </header>
+      )}
+
+      {/* Share link sheet (trainer invites players/parents) */}
+      {role === 'TRAINER' && (
+        <ShareLinkSheet isOpen={shareOpen} onClose={() => setShareOpen(false)} />
       )}
 
       {/* Main content */}

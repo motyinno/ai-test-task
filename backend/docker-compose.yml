@@ -24,5 +24,13 @@ services:
     tmpfs:
       - /var/lib/postgresql/data
 
+  # Dev email catcher — SMTP on :1025, web inbox UI on http://localhost:8025
+  # Run the API with EMAIL_PROVIDER=smtp SMTP_HOST=localhost SMTP_PORT=1025 to see emails.
+  mailpit:
+    image: axllent/mailpit:latest
+    ports:
+      - '1025:1025'
+      - '8025:8025'
+
 volumes:
   postgres_data:

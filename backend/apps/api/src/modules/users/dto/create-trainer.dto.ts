@@ -4,7 +4,7 @@ import {
   MaxLength,
   IsEmail,
   IsOptional,
-  IsPhoneNumber,
+  Matches,
   IsEnum,
 } from 'class-validator';
 
@@ -25,7 +25,9 @@ export class CreateTrainerDto {
 
   @ApiPropertyOptional({ example: '+12025551234' })
   @IsOptional()
-  @IsPhoneNumber()
+  @Matches(/^[+\d][\d\s().-]{6,19}$/, {
+    message: 'phone must be a valid phone number',
+  })
   phone?: string;
 
   @ApiProperty({

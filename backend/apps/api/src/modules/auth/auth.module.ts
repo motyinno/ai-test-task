@@ -10,6 +10,7 @@ import { PasswordService } from '../../shared/crypto/password.service';
 import { User } from '../users/entities/user.entity';
 import { PasswordResetToken } from './entities/password-reset-token.entity';
 import { EmailVerificationToken } from './entities/email-verification-token.entity';
+import { InvitationToken } from './entities/invitation-token.entity';
 import { ChildLogin } from '../child-account/entities/child-login.entity';
 import { PlayerProfile } from '../users/entities/player-profile.entity';
 
@@ -20,6 +21,7 @@ import { PlayerProfile } from '../users/entities/player-profile.entity';
       User,
       PasswordResetToken,
       EmailVerificationToken,
+      InvitationToken,
       ChildLogin,
       PlayerProfile,
     ]),

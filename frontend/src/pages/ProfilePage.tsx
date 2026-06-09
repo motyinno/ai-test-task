@@ -2,7 +2,7 @@
  * PracticePerfect Profile page.
  * Updated to use PracticePerfect design tokens.
  */
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { profileApi, type UpdateProfileDto, type SkillLevel } from '@/api/endpoints/profile';
@@ -13,8 +13,8 @@ import { useMe } from '@/providers/auth-provider';
 const PROFILE_QUERY_KEY = ['profile', 'me'] as const;
 
 interface ProfileFormValues {
+  // Single display name (maps to TrainerProfile.trainerName / PlayerProfile.name).
   firstName: string;
-  lastName: string;
   phone: string;
   // Coach
   bio: string;
@@ -24,13 +24,14 @@ interface ProfileFormValues {
   school: string;
   jerseyNumber: string;
   skillLevel: SkillLevel | '';
-  // Parent
-  emergencyContact: string;
 }
 
 export default function ProfilePage() {
   const { data: me } = useMe();
   const role = me?.role ?? 'PLAYER';
+  // Super Admin has no role-specific profile, so name/phone/photo have nowhere to
+  // persist. Show their account as read-only rather than letting them "save" no-ops.
+  const canEditProfile = role !== 'SUPER_ADMIN';
   const qc = useQueryClient();
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
 
@@ -45,7 +46,6 @@ export default function ProfilePage() {
     if (profile) {
       reset({
         firstName: profile.firstName ?? '',
-        lastName: profile.lastName ?? '',
         phone: profile.phone ?? '',
         bio: profile.bio ?? '',
         credentials: profile.credentials ?? '',
@@ -53,7 +53,6 @@ export default function ProfilePage() {
         school: profile.school ?? '',
         jerseyNumber: profile.jerseyNumber ?? '',
         skillLevel: profile.skillLevel ?? '',
-        emergencyContact: profile.emergencyContact ?? '',
       });
     }
   }, [profile, reset]);
@@ -65,14 +64,42 @@ export default function ProfilePage() {
       setSaveMessage('Profile updated');
       setTimeout(() => setSaveMessage(null), 3000);
     },
+    onError: (err) => {
+      setSaveMessage(err instanceof Error ? err.message : 'Failed to update profile');
+      setTimeout(() => setSaveMessage(null), 5000);
+    },
   });
 
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const photoMutation = useMutation({
+    mutationFn: (file: File) => profileApi.uploadPhoto(file),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: PROFILE_QUERY_KEY });
+      setSaveMessage('Photo updated');
+      setTimeout(() => setSaveMessage(null), 3000);
+    },
+    onError: (err) => {
+      setSaveMessage(err instanceof Error ? err.message : 'Photo upload failed');
+      setTimeout(() => setSaveMessage(null), 4000);
+    },
+  });
+
+  const onPhotoSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) photoMutation.mutate(file);
+    e.target.value = ''; // allow re-selecting the same file
+  };
+
   const onSubmit = (values: ProfileFormValues) => {
-    const dto: UpdateProfileDto = {
-      firstName: values.firstName || undefined,
-      lastName: values.lastName || undefined,
-      phone: values.phone || undefined,
-    };
+    const dto: UpdateProfileDto = {};
+    // Name maps to the single display name; only trainer/player have one.
+    if (role === 'TRAINER' || role === 'PLAYER') {
+      dto.firstName = values.firstName || undefined;
+    }
+    // Phone column exists only on TrainerProfile.
+    if (role === 'TRAINER') {
+      dto.phone = values.phone || undefined;
+    }
     if (role === 'COACH') {
       dto.bio = values.bio || undefined;
       dto.credentials = values.credentials || undefined;
@@ -82,9 +109,6 @@ export default function ProfilePage() {
       dto.school = values.school || undefined;
       dto.jerseyNumber = values.jerseyNumber || undefined;
       dto.skillLevel = (values.skillLevel || undefined) as SkillLevel | undefined;
-    }
-    if (role === 'PLAYER' && !me?.isChild) {
-      dto.emergencyContact = values.emergencyContact || undefined;
     }
     updateMutation.mutate(dto);
   };
@@ -166,6 +190,34 @@ export default function ProfilePage() {
               )}
             </div>
 
+            {/* Photo upload — Super Admin has no profile to store a photo */}
+            {canEditProfile && (
+              <>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/png,image/jpeg,image/jpg,image/webp"
+                  onChange={onPhotoSelected}
+                  style={{ display: 'none' }}
+                  aria-hidden="true"
+                />
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={photoMutation.isPending}
+                  style={{ width: '100%', maxWidth: '160px', marginBottom: 'var(--space-lg)' }}
+                >
+                  {photoMutation.isPending
+                    ? 'Uploading…'
+                    : profile?.photoUrl
+                      ? 'Change photo'
+                      : 'Upload photo'}
+                </Button>
+              </>
+            )}
+
             {/* Read-only locked rows */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>
               <div>
@@ -241,32 +293,42 @@ export default function ProfilePage() {
               </div>
             )}
 
+            {!canEditProfile && (
+              <p
+                role="note"
+                style={{
+                  fontFamily: 'var(--font-body)',
+                  fontSize: 'var(--text-body)',
+                  color: 'var(--text-secondary)',
+                  background: 'var(--bg)',
+                  border: '1px solid var(--border-soft)',
+                  borderRadius: 'var(--radius-sm)',
+                  padding: 'var(--space-md)',
+                }}
+              >
+                Super Admin accounts have no editable profile fields. Your email and
+                role are shown for reference.
+              </p>
+            )}
+
+            {canEditProfile && (
             <form
               onSubmit={handleSubmit(onSubmit)}
               noValidate
               style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}
             >
-              <div
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: '1fr 1fr',
-                  gap: 'var(--space-md)',
-                }}
-              >
+              {(role === 'TRAINER' || role === 'PLAYER') && (
                 <Input
                   id="firstName"
-                  label="First Name"
+                  label="Name"
                   error={errors.firstName?.message}
                   {...register('firstName')}
                 />
-                <Input
-                  id="lastName"
-                  label="Last Name"
-                  {...register('lastName')}
-                />
-              </div>
+              )}
 
-              <Input id="phone" label="Phone" type="tel" {...register('phone')} />
+              {role === 'TRAINER' && (
+                <Input id="phone" label="Phone" type="tel" {...register('phone')} />
+              )}
 
               {role === 'COACH' && (
                 <>
@@ -406,20 +468,13 @@ export default function ProfilePage() {
                 </>
               )}
 
-              {role === 'PLAYER' && !me?.isChild && (
-                <Input
-                  id="emergencyContact"
-                  label="Emergency Contact"
-                  {...register('emergencyContact')}
-                />
-              )}
-
               <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
                 <Button type="submit" loading={updateMutation.isPending} disabled={!isDirty}>
                   Save
                 </Button>
               </div>
             </form>
+            )}
           </div>
         </div>
       </div>

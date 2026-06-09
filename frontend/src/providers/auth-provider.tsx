@@ -70,6 +70,10 @@ export function useLogin(): UseMutationResult<MeResponseDto, Error, LoginDto> {
   return useMutation({
     mutationFn: (dto: LoginDto) => authApi.login(dto),
     onSuccess: (data) => {
+      // The server regenerates the session on login (anti-fixation), which rotates
+      // the CSRF token. Drop the cached pre-login token so the next mutation fetches
+      // a fresh one — otherwise create/update/logout all 403 with a stale token.
+      clearCsrfCache();
       qc.setQueryData(ME_QUERY_KEY, data);
     },
   });

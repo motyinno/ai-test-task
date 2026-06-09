@@ -304,6 +304,9 @@ export class PlayersChildService {
     }
 
     let resolvedTrainerId: string;
+    // Set when the trainer was resolved from a share-link code — the link is the
+    // trainer's consent, so it doubles as the grant that connects the parent.
+    let resolvedLinkId: string | null = null;
 
     if (opts.shareLinkCode) {
       // Option A: resolve trainerId from ShareLink
@@ -312,6 +315,7 @@ export class PlayersChildService {
         throw new NotFoundException({ message: 'Share link not found or inactive', errorCode: 'LINK_NOT_FOUND' });
       }
       resolvedTrainerId = link.trainerId;
+      resolvedLinkId = link.id;
     } else if (opts.trainerId) {
       // Option B: direct trainerId
       resolvedTrainerId = opts.trainerId;
@@ -322,15 +326,41 @@ export class PlayersChildService {
       });
     }
 
-    // FR-024: verify parent is associated with this trainer
+    // FR-024: the parent must be associated with the trainer before adding a child.
+    // A valid share-link code IS the trainer's consent, so when the trainer was
+    // resolved from a code we auto-connect the parent (one-step family onboarding)
+    // instead of rejecting. The direct-trainerId path keeps the original gate.
     const parentProfile = await this.playerProfileRepo.findOne({ where: { userId: parentUserId } });
     if (parentProfile) {
       const parentAssoc = await this.playersRepo.findAssociation(resolvedTrainerId, parentProfile.id);
-      if (!parentAssoc || parentAssoc.status !== AssociationStatus.ACTIVE) {
-        throw new ForbiddenException({
-          message: 'Parent must be associated with this trainer to add child',
-          errorCode: 'PARENT_NOT_ASSOCIATED_WITH_TRAINER',
-        });
+      const parentActive = !!parentAssoc && parentAssoc.status === AssociationStatus.ACTIVE;
+
+      if (!parentActive) {
+        if (!resolvedLinkId) {
+          throw new ForbiddenException({
+            message: 'Parent must be associated with this trainer to add child',
+            errorCode: 'PARENT_NOT_ASSOCIATED_WITH_TRAINER',
+          });
+        }
+
+        // Auto-connect the parent via the same share link.
+        if (parentAssoc) {
+          parentAssoc.status = AssociationStatus.ACTIVE;
+          parentAssoc.viaShareLinkId = resolvedLinkId;
+          await this.playersRepo.saveAssociation(parentAssoc);
+        } else {
+          try {
+            await this.playersRepo.saveAssociation({
+              trainerId: resolvedTrainerId,
+              playerProfileId: parentProfile.id,
+              viaShareLinkId: resolvedLinkId,
+              status: AssociationStatus.ACTIVE,
+            });
+          } catch (err: unknown) {
+            // Ignore unique-violation races — another request connected the parent.
+            if ((err as { code?: string })?.code !== '23505') throw err;
+          }
+        }
       }
     }
 

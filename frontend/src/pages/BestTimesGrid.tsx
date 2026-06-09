@@ -304,6 +304,10 @@ export default function BestTimesGrid() {
       setSaveMessage('Availability saved');
       setTimeout(() => setSaveMessage(null), 3000);
     },
+    onError: (err) => {
+      setSaveMessage(err instanceof Error ? err.message : 'Failed to save availability');
+      setTimeout(() => setSaveMessage(null), 5000);
+    },
   });
 
   const handleToggle = (key: SlotKey) => {
