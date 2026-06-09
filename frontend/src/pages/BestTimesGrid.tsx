@@ -8,6 +8,7 @@
 import React, { useState, useEffect, useReducer } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { availabilityApi, type AvailabilitySlot } from '@/api/endpoints/availability';
+import { playersContextApi } from '@/api/endpoints/players-context';
 import { useMe } from '@/providers/auth-provider';
 import { Button } from '@/components/ui/Button';
 
@@ -257,8 +258,23 @@ function DayAccordion({ day, selected, onToggle }: DayAccordionProps) {
 
 export default function BestTimesGrid() {
   const { data: me } = useMe();
-  const profileId = me?.activeContext?.profileId;
   const qc = useQueryClient();
+
+  // The backend only sets activeContext after an explicit switch. On a fresh
+  // session (no switch yet) it is absent — which previously left a parent with a
+  // single profile stuck on the "No active profile" gate (the ContextSwitcher
+  // chevron only appears when ≥2 contexts exist). To keep the screen usable we
+  // fall back to the principal's available contexts, preferring their self
+  // profile, then the first child profile.
+  const { data: contextsData } = useQuery({
+    queryKey: ['players', 'me', 'contexts'] as const,
+    queryFn: () => playersContextApi.getContexts(),
+    enabled: !!me && !me.activeContext?.profileId,
+  });
+
+  const fallbackContext =
+    contextsData?.data.find((c) => c.isSelf) ?? contextsData?.data[0];
+  const profileId = me?.activeContext?.profileId ?? fallbackContext?.profileId;
 
   const [state, dispatch] = useReducer(gridReducer, { selected: new Set<SlotKey>() });
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
