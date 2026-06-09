@@ -24,7 +24,10 @@ const mockMe = {
 
 function renderPage() {
   const qc = new QueryClient({
-    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    defaultOptions: {
+      queries: { retry: false, staleTime: Infinity },
+      mutations: { retry: false },
+    },
   });
   qc.setQueryData(ME_QUERY_KEY, mockMe);
   return render(
@@ -174,7 +177,9 @@ describe('BestTimesGrid', () => {
   });
 
   it('shows message when no profile selected', () => {
-    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const qc = new QueryClient({
+      defaultOptions: { queries: { retry: false, staleTime: Infinity } },
+    });
     // me with no activeContext
     qc.setQueryData(ME_QUERY_KEY, { ...mockMe, activeContext: null });
     render(
