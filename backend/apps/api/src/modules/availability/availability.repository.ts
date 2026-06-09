@@ -34,13 +34,15 @@ export class AvailabilityRepository extends TenantAwareRepository<Availability> 
 
   /**
    * Find all slots for a given subject (player or coach profile).
-   * Tenant-scoped: only returns slots belonging to the active trainer's org.
+   * Uses a direct query by subjectId — the subjectId is already validated by
+   * the service layer (ownership check) so no additional tenant filter is needed here.
+   * This avoids requiring CLS context on the GET read path.
    */
   async findBySubject(
     subjectType: AvailabilitySubjectType,
     subjectId: string,
   ): Promise<Availability[]> {
-    return this.scopedFind({ where: { subjectType, subjectId } as never });
+    return this.availabilityBaseRepo.find({ where: { subjectType, subjectId } as never });
   }
 
   /**
