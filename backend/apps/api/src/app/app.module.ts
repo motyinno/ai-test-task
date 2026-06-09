@@ -19,6 +19,8 @@ import { CoachesModule } from '../modules/coaches/coaches.module';
 import { ApprovalsModule } from '../modules/approvals/approvals.module';
 import { ChildAccountModule } from '../modules/child-account/child-account.module';
 import { TrainersModule } from '../modules/trainers/trainers.module';
+import { AuditModule } from '../shared/audit/audit.module';
+import { ImpersonationModule } from '../modules/impersonation/impersonation.module';
 import { HealthController } from '../shared/health/health.controller';
 import { SessionTestController } from '../shared/session/session-test.controller';
 
@@ -41,6 +43,8 @@ const testControllers =
     ChildAccountModule,
     TrainersModule,
     AuthzModule,
+    AuditModule,
+    ImpersonationModule,
     ThrottlerModule.forRoot([
       {
         // Global default: 100 requests per minute (high limit in test to avoid cross-test contamination)
