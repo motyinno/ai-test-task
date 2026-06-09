@@ -189,13 +189,15 @@ describe('FamilyDashboard', () => {
     await waitFor(() => expect(deleteCalled).toBe(true));
   });
 
-  it('calls add-trainer endpoint', async () => {
+  it('adds a trainer via share link code (extracts code from a pasted join link)', async () => {
     let addCalled = false;
     server.use(
       http.get('/api/v1/players/me/children', () => HttpResponse.json(dataResponse)),
       http.post('/api/v1/players/me/children/child-1/trainers', async ({ request }) => {
-        const body = await request.json() as { trainerId?: string };
-        expect(body.trainerId).toBe('trainer-uuid-2');
+        const body = await request.json() as { shareLinkCode?: string; trainerId?: string };
+        // Parent never supplies a UUID; only the share-link code, extracted from the link.
+        expect(body.shareLinkCode).toBe('ABC123');
+        expect(body.trainerId).toBeUndefined();
         addCalled = true;
         return HttpResponse.json({}, { status: 201 });
       }),
@@ -207,7 +209,7 @@ describe('FamilyDashboard', () => {
     await user.click(screen.getByRole('button', { name: /add trainer/i }));
     await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument());
 
-    await user.type(screen.getByLabelText(/trainer id/i), 'trainer-uuid-2');
+    await user.type(screen.getByLabelText(/share link code/i), 'https://app.test/join/ABC123');
     const addTrainerDialog = screen.getByRole('dialog');
     await user.click(within(addTrainerDialog).getByRole('button', { name: /^add trainer$/i }));
     await waitFor(() => expect(addCalled).toBe(true));
