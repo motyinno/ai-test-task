@@ -363,6 +363,67 @@ const PHASE_D_QUERIES = [
   `CREATE INDEX IF NOT EXISTS "IDX_approval_child_status" ON "approval_requests" ("child_profile_id", "status")`,
 ];
 
+// ── Phase E: Availability ────────────────────────────────────────────────────
+
+const PHASE_E_MIGRATION_NAME = 'PhaseEAvailability1749700000000';
+
+const PHASE_E_QUERIES = [
+  // availability_subject_type_enum
+  `DO $$ BEGIN
+    CREATE TYPE "public"."availability_subject_type_enum" AS ENUM('COACH', 'PLAYER');
+  EXCEPTION WHEN duplicate_object THEN NULL;
+  END $$`,
+
+  // day_of_week_enum
+  `DO $$ BEGIN
+    CREATE TYPE "public"."day_of_week_enum" AS ENUM(
+      'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'
+    );
+  EXCEPTION WHEN duplicate_object THEN NULL;
+  END $$`,
+
+  // availability_slots
+  `CREATE TABLE IF NOT EXISTS "availability_slots" (
+    "id"           UUID                                          NOT NULL DEFAULT uuid_generate_v4(),
+    "trainer_id"   CHARACTER VARYING                            NOT NULL,
+    "subject_type" "public"."availability_subject_type_enum"   NOT NULL,
+    "subject_id"   CHARACTER VARYING                            NOT NULL,
+    "day_of_week"  "public"."day_of_week_enum"                 NOT NULL,
+    "start_time"   CHARACTER VARYING(5)                         NOT NULL,
+    "end_time"     CHARACTER VARYING(5)                         NOT NULL,
+    "is_available" BOOLEAN                                      NOT NULL DEFAULT TRUE,
+    "created_at"   TIMESTAMP                                    NOT NULL DEFAULT NOW(),
+    "updated_at"   TIMESTAMP                                    NOT NULL DEFAULT NOW(),
+    CONSTRAINT "PK_availability_slots" PRIMARY KEY ("id")
+  )`,
+
+  `CREATE INDEX IF NOT EXISTS "IDX_availability_subject"
+    ON "availability_slots" ("subject_type", "subject_id")`,
+
+  `CREATE INDEX IF NOT EXISTS "IDX_availability_trainer"
+    ON "availability_slots" ("trainer_id")`,
+
+  `CREATE INDEX IF NOT EXISTS "IDX_availability_trainer_subject"
+    ON "availability_slots" ("trainer_id", "subject_type")`,
+
+  // coach_availability_overrides (E5: audit log for BR-016 overrides)
+  `CREATE TABLE IF NOT EXISTS "coach_availability_overrides" (
+    "id"                       UUID                   NOT NULL DEFAULT uuid_generate_v4(),
+    "coach_id"                 CHARACTER VARYING      NOT NULL,
+    "overridden_by_trainer_id" CHARACTER VARYING      NOT NULL,
+    "event_id"                 CHARACTER VARYING      NULL DEFAULT NULL,
+    "reason"                   TEXT                   NOT NULL,
+    "created_at"               TIMESTAMP              NOT NULL DEFAULT NOW(),
+    CONSTRAINT "PK_coach_availability_overrides" PRIMARY KEY ("id")
+  )`,
+
+  `CREATE INDEX IF NOT EXISTS "IDX_cao_coach_id"
+    ON "coach_availability_overrides" ("coach_id")`,
+
+  `CREATE INDEX IF NOT EXISTS "IDX_cao_trainer_id"
+    ON "coach_availability_overrides" ("overridden_by_trainer_id")`,
+];
+
 // ── Runner ────────────────────────────────────────────────────────────────────
 
 async function runMigration(client, name, timestamp, queries) {
@@ -420,6 +481,9 @@ async function run() {
     // Phase D: Player/Parent Family
     await runMigration(client, PHASE_D_MIGRATION_NAME, 1749600000000, PHASE_D_QUERIES);
 
+    // Phase E: Availability
+    await runMigration(client, PHASE_E_MIGRATION_NAME, 1749700000000, PHASE_E_QUERIES);
+
     // Verify key tables exist
     const tables = [
       'users',
@@ -431,6 +495,8 @@ async function run() {
       'trainer_player_associations',
       'child_logins',
       'approval_requests',
+      'availability_slots',
+      'coach_availability_overrides',
     ];
     for (const table of tables) {
       const result = await client.query(

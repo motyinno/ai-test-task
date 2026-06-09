@@ -2,10 +2,12 @@ import {
   Controller,
   Post,
   Get,
+  Put,
   Delete,
   Patch,
   Body,
   Param,
+  Query,
   HttpCode,
   HttpStatus,
   Req,
@@ -23,6 +25,8 @@ import { AddChildTrainerDto } from './dto/add-child-trainer.dto';
 import { TokenSettingDto } from './dto/token-setting.dto';
 import { Roles } from '../../shared/authz/roles.decorator';
 import { ApprovalsService } from '../approvals/approvals.service';
+import { AvailabilityService } from '../availability/availability.service';
+import { SetAvailabilityDto } from '../availability/dto/set-availability.dto';
 
 type SessionRecord = Record<string, unknown>;
 interface SessionPrincipal {
@@ -57,6 +61,7 @@ export class PlayersController {
     private readonly playersService: PlayersService,
     private readonly playersChildService: PlayersChildService,
     private readonly approvalsService: ApprovalsService,
+    private readonly availabilityService: AvailabilityService,
   ) {}
 
   /**
@@ -214,6 +219,57 @@ export class PlayersController {
       childId,
       principal.id,
       dto.allowTokenSpendWithoutApproval,
+    );
+  }
+
+  // ─── E2: Player Best Times availability ────────────────────────────────────
+
+  /**
+   * GET /players/:profileId/availability — get availability slots for a player profile.
+   *
+   * Caller must own the profile (direct owner or parent of the child profile).
+   * Advisory (BR-015): read-only view of best times — no enforcement side effects.
+   */
+  @Get('players/:profileId/availability')
+  @Roles('PLAYER')
+  @ApiOperation({ summary: 'Get player availability (Best Times, BR-015 advisory)' })
+  async getPlayerAvailability(
+    @Req() req: Request,
+    @Param('profileId', ParseUUIDPipe) profileId: string,
+  ) {
+    const principal = getPrincipal(req);
+    if (!principal?.id) throw new UnauthorizedException('Not authenticated');
+    return this.availabilityService.getPlayerAvailability(
+      profileId,
+      principal.id,
+      (principal as SessionPrincipal & { trainerId?: string }).trainerId ?? '',
+    );
+  }
+
+  /**
+   * PUT /players/:profileId/availability — set (replace) availability slots for a profile.
+   *
+   * Full replacement: existing slots are deleted and replaced with the new list.
+   * Caller must own the profile (or be the parent of the child profile).
+   * A parent CANNOT edit another parent's child profile (403 AVAILABILITY_ACCESS_DENIED).
+   * Advisory (BR-015): setting availability does not hard-block scheduling.
+   */
+  @Put('players/:profileId/availability')
+  @Roles('PLAYER')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Set player availability slots (BR-015 advisory, full replace)' })
+  async setPlayerAvailability(
+    @Req() req: Request,
+    @Param('profileId', ParseUUIDPipe) profileId: string,
+    @Body() dto: SetAvailabilityDto,
+  ) {
+    const principal = getPrincipal(req);
+    if (!principal?.id) throw new UnauthorizedException('Not authenticated');
+    return this.availabilityService.setPlayerAvailability(
+      profileId,
+      principal.id,
+      (principal as SessionPrincipal & { trainerId?: string }).trainerId ?? '',
+      dto,
     );
   }
 }

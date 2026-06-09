@@ -18,6 +18,7 @@ import { TrainerProfile } from '../users/entities/trainer-profile.entity';
 import { CoachProfile } from '../users/entities/coach-profile.entity';
 import { ApprovalsModule } from '../approvals/approvals.module';
 import { SessionContextService } from '../auth/session-context.service';
+import { AvailabilityModule } from '../availability/availability.module';
 
 @Module({
   imports: [
@@ -35,6 +36,7 @@ import { SessionContextService } from '../auth/session-context.service';
     EmailModule,
     TenancyModule,
     ApprovalsModule,
+    AvailabilityModule,
   ],
   controllers: [PlayersController],
   providers: [
