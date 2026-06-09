@@ -1,496 +1,428 @@
-# Accelerator Core
+# PracticePerfect — Sports Training Platform
 
-> **For agent policy rules, see [AGENTS.md](AGENTS.md)**
+> A multi-tenant platform connecting Super Admins, Trainers (business owners), Coaches, and Players/Parents. **Epic-01 (User Management & Authentication) is complete** and ships the auth foundation, multi-role RBAC, multi-tenant isolation, family accounts, and Super Admin tooling that all downstream epics build on.
 
-A skill-based extension framework for [Claude Code](https://docs.anthropic.com/claude-code) that adds structured workflows, specialized agents, and quality hooks to your development process.
+## Project Overview
 
-## Directory Structure
+**PracticePerfect** is a web platform that helps trainers manage their sports businesses by connecting with coaches and players/parents. The system supports four distinct roles with separated, role-specific views:
 
-```
-.claude/
-├── agents/          # Agent definitions (execute skills in isolation)
-├── commands/        # Slash commands (user-invocable shortcuts)
-├── hooks/           # Shell commands triggered by events
-├── skills/          # Detailed skill implementations
-├── settings.json    # Team configuration (permissions, hooks)
-└── settings.local.json  # Personal settings (gitignored)
-```
+- **Super Admin:** Oversees the platform; creates trainers; views impersonation history; manages content moderation.
+- **Trainer:** Business owner; runs an isolated organization; manages coaches, players, availability, and portal branding.
+- **Coach:** Works under a single trainer; sets availability ("My Times"); manages events and player RSVPs.
+- **Player/Parent:** Self-serves across multiple trainers; registers via ShareLink invitation; manages children, approval workflows, and availability ("Best Times").
 
-## Architecture: Command -> Agent -> Skill
+**Epic-01 completes the P0 foundation:** server-side session authentication, role-based access control (RBAC), multi-tenant data isolation, family account workflows (parent + child profiles), child purchase approvals, coach availability conflict resolution, impersonation with audit logging, and GDPR-compliant data deletion.
 
-The system uses a **manual flow** where each command runs in isolation and suggests the next step. This keeps context clean and prevents hallucination.
+## Architecture
+
+The system is built in two layers:
 
 ```
-User runs: /requirements-analyst [prompt]
-              │
-              ▼
-    ┌─────────────────────┐
-    │   Command Spawns    │
-    │   Agent             │
-    └─────────────────────┘
-              │
-              ▼
-    ┌─────────────────────┐
-    │   Agent Executes    │
-    │   Skill             │
-    └─────────────────────┘
-              │
-              ▼
-    ┌─────────────────────┐
-    │   Output with       │
-    │   Context Summary   │
-    │   + Next Steps      │
-    └─────────────────────┘
+┌─────────────────────────────────────────────────────┐
+│ Backend: NestJS (TypeScript) + PostgreSQL           │
+│ - Layered: Controller → Service → Repository        │
+│ - Multi-tenancy: AsyncLocalStorage (nestjs-cls)    │
+│ - Auth: Passport local + express-session (cookie)  │
+│ - Authz: @Roles() + CASL child constraints         │
+│ - Session store: Postgres (connect-pg-simple)      │
+└─────────────────────────────────────────────────────┘
+                          ↓ HTTP (session cookie)
+┌─────────────────────────────────────────────────────┐
+│ Frontend: Vite + React (TypeScript)                 │
+│ - Design system: Editorial Athletic (light/dark)   │
+│ - State: TanStack Query + React hooks               │
+│ - Tokens: PracticePerfect design tokens (Tailwind)  │
+│ - Vite dev proxy: /api → http://localhost:3000     │
+└─────────────────────────────────────────────────────┘
 ```
 
-**Key Benefits:**
-- Each command runs in isolated context (prevents hallucination)
-- Context summaries allow handoff to next command
-- User controls the flow (no automatic chaining)
-- Main conversation stays clean
-
-## Documentation System
-
-### Temporary Task Docs (tasks/)
-- Created by: requirements-analyst, brainstorming, writing-plans
-- Location: `tasks/TASK-N/` (N auto-increments)
-- Files: requirements-analyst-requirements.md, brainstorming-design.md, writing-plans-plan.md
-- Lifecycle: Delete manually after implementation complete
-
-### Living Specifications (specs/)
-- Created/Updated by: architect, api-designer, frontend-design, docs-generator
-- Location: `specs/` with MANIFEST.md index
-- Files: architect-architecture.md, api-designer-spec.md, frontend-design-spec.md, docs-generator-implementation.md
-- Updates: Append sections with [TASK-N] prefix
-- Lifecycle: Permanent, grows with project
-
-See spec-desc.md for specification structure template.
+For detailed architecture, schema design, API contracts, and module dependency graphs, see:
+- **`specs/architect-architecture.md`** — System design, multi-tenancy, auth, transaction boundaries, scheduler.
+- **`specs/api-designer-spec.md`** — Endpoint contracts, status codes, error shapes, session model.
+- **`specs/frontend-design-spec.md`** — Pages, components, state management, design tokens.
+- **`specs/MANIFEST.md`** — Project index and key decisions.
 
 ## Prerequisites
 
-### Node.js & npm (required)
+### Node.js & npm
 
-Node.js 18+ is required. npm comes bundled with Node.js.
-
+Node 18+ required. Verify:
 ```bash
-# Check installed version
 node -v && npm -v
 ```
 
-Install from [nodejs.org](https://nodejs.org/) or via a version manager ([nvm](https://github.com/nvm-sh/nvm), [fnm](https://github.com/Schniz/fnm), [volta](https://volta.sh/)).
+### Docker (for PostgreSQL)
 
-### GitHub CLI (required for `/release`, `/finishing-branch`, `/review-pr`, `/accelerator-update`)
-
-```bash
-# macOS
-brew install gh
-
-# Windows
-winget install --id GitHub.cli
-
-# Linux (Debian/Ubuntu)
-sudo apt install gh
-```
-
-After install, authenticate:
+Docker is required to run the development and test databases locally.
 
 ```bash
-gh auth login
+docker --version
 ```
 
-### Python 3 (required for `/release`, `/skill-creator`, `/accelerator-update`)
+Ensure Docker daemon is running before starting services.
 
-Python 3.8+ is used by internal scripts (changelog generation, version comparison, benchmarks).
+---
+
+## Backend Setup & Run
+
+The backend is a NestJS Nx monorepo at `/backend` with the API app under `backend/apps/api`.
+
+### 1. Install Dependencies
 
 ```bash
-# Check installed version
-python3 --version
+cd backend && npm install
 ```
 
-Install from [python.org](https://www.python.org/downloads/) or via package manager (`brew install python3`, `sudo apt install python3`).
+### 2. Start PostgreSQL (Development)
 
-### RTK + jq (optional, token savings 60-90%)
-
-[RTK](https://github.com/rtk-ai/rtk) is a CLI proxy that compresses command output before it reaches the agent's context window. A PreToolUse hook automatically rewrites bash commands to RTK equivalents. If not installed, the hook silently passes through — nothing breaks.
+From the backend directory, start the dev Postgres container:
 
 ```bash
-# macOS
-brew install rtk jq
-
-# Windows
-winget install --id jqlang.jq
-# RTK: download binary from https://github.com/rtk-ai/rtk/releases
-# and add to PATH
-
-# Linux
-curl -fsSL https://raw.githubusercontent.com/rtk-ai/rtk/refs/heads/master/install.sh | sh
-sudo apt install jq
+docker compose up -d postgres
 ```
 
-Verify:
+Verify it's ready:
+```bash
+docker ps | grep postgres
+```
+
+**Database:** `trainer_app_dev` | **Port:** 5432  
+**Credentials:** user=`trainer_app`, password=`trainer_app_pass`
+
+### 3. Run Migrations
+
+Create the schema by running all pending migrations (Phase A through Phase G):
 
 ```bash
-rtk --version
-jq --version
+export DATABASE_URL="postgresql://trainer_app:trainer_app_pass@localhost:5432/trainer_app_dev"
+node apps/api/src/shared/database/run-migrations.mjs
 ```
 
-### Context7 CLI (optional, for up-to-date library docs)
+This is idempotent; re-running is safe.
 
-Fetches current documentation for any library directly into the agent's context. Useful when writing code with APIs that may have changed since the model's training cutoff.
+### 4. Seed a Super Admin (Dev Only)
+
+There is **no public signup** by design — trainers are created by a Super Admin, and players join via ShareLink invitations. To log in for the first time, a Super Admin must exist in the database.
+
+Insert a Super Admin row directly (one-time, dev-only):
 
 ```bash
-npm install -g ctx7@latest
-ctx7 login                         # Optional — higher rate limits
+# From backend/
+psql "postgresql://trainer_app:trainer_app_pass@localhost:5432/trainer_app_dev" -c "
+INSERT INTO public.user (
+  id, email, password_hash, role, status, email_verified, created_at
+) VALUES (
+  'a0000000-0000-0000-0000-000000000001'::uuid,
+  'admin@example.com',
+  '\$argon2id\$v=19\$m=19456,t=2,p=1\$zqkKqiBEfCwXCRfG3sLFUg\$v5C33m2lWOzlOt7gQzjCKvzY7VHJ1dNOPwLkqLMUVc4',
+  'SUPER_ADMIN',
+  'ACTIVE',
+  false,
+  NOW()
+) ON CONFLICT DO NOTHING;
+"
 ```
 
-Or run without installing: `npx ctx7@latest <command>`
+**Login credentials:**
+- Email: `admin@example.com`
+- Password: `password123` (the hash above is argon2-hashed; the plain password used in production should be securely generated and transmitted via email or secure channel)
 
-### agent-browser CLI (required for `/browser-verify`)
+**Note:** For production, use a secure temporary password generated by the system and sent via email; never hardcode passwords.
+
+### 5. Start the Backend
+
+Set environment variables and run the development server:
 
 ```bash
-npm install -g agent-browser
-agent-browser install              # Downloads Chromium (first time only)
+export NODE_ENV=development
+export DATABASE_URL="postgresql://trainer_app:trainer_app_pass@localhost:5432/trainer_app_dev"
+export SESSION_SECRET="dev-secret-change-in-prod"
+export PORT=3000
+
+npx nx serve api
 ```
 
-The agent-browser skill is already bundled in this repo at `.claude/skills/agent-browser/` — no separate skill installation needed.
+Expected output: Backend listens on `http://localhost:3000`, API base at `http://localhost:3000/api/v1`.
 
-## Quick Start
+---
 
-### Using Commands (Slash Commands)
+## Frontend Setup & Run
 
-Commands are shortcuts to invoke skills. Type `/` followed by the command name:
+The frontend is a standalone Vite + React app at `/frontend`.
 
-| Command                 | Description                                       |
-| ----------------------- | ------------------------------------------------- |
-| `/requirements-analyst` | Analyze and decompose requirements                |
-| `/brainstorm`           | Explore ideas and create designs through dialogue |
-| `/writing-plans`        | Create detailed implementation plans              |
-| `/architect`            | System architecture decisions                     |
-| `/api-designer`         | REST API design with Swagger                      |
-| `/git-worktrees`        | Create isolated workspaces                        |
-| `/coder`                | Implement backend features                        |
-| `/coder-frontend`       | Implement frontend features                       |
-| `/browser-verify`       | Verify UI changes visually in the running app     |
-| `/frontend-design`      | Create distinctive UI designs                     |
-| `/code-reviewer`        | Code quality and best practices review            |
-| `/test-generator`       | Generate unit, integration, and E2E tests         |
-| `/debugger`             | Systematic debugging with root cause analysis     |
-| `/release`              | Create GitHub release with changelog              |
-| `/finishing-branch`     | Complete branch work and merge/PR                 |
-| `/verify`               | Run DoD checklist and report pass/fail status     |
-| `/docs-generator`       | Generate project documentation                    |
-| `/reflect`              | Turn agent mistakes into permanent rules           |
-| `/skill-creator`        | Create new skills                                 |
-| `/accelerator-update`   | Update accelerator to latest version              |
+### 1. Install Dependencies
 
-**Example:**
-
-```
-/brainstorm user authentication with OAuth
+```bash
+cd frontend && npm install
 ```
 
-### Context Handoff
+### 2. Start Development Server
 
-Each command outputs a context summary. Pass this to the next command:
-
-```
-/brainstorm Design user authentication feature
-
-[Agent completes and outputs context summary]
-
-/writing-plans Based on auth design: JWT with refresh tokens,
-  endpoints for login/logout/refresh, middleware for protected routes
+```bash
+npm run dev
 ```
 
-## Skill Flow
+Expected output: Frontend listens on `http://localhost:5173`.
 
-See `.claude/skills/SKILL FLOW.md` for the complete visual diagram.
+**API proxy:** During development, requests to `/api/*` are automatically proxied to `http://localhost:3000`. See `vite.config.ts` for proxy config.
 
-### Quick Reference: Next by Flow
+### 3. Open in Browser
 
-| Current Command | Next by Flow | Why |
-|-----------------|--------------|-----|
-| `/requirements-analyst` | `/brainstorm` | Turn requirements into design |
-| `/brainstorm` | `/architect` | Review architecture |
-| `/architect` | `/api-designer` | Design APIs |
-| `/api-designer` | `/frontend-design` | Design UI based on API |
-| `/frontend-design` | `/writing-plans` | Create implementation tasks |
-| `/writing-plans` | `/git-worktrees` | Create workspace |
-| `/git-worktrees` | `/coder` or `/coder-frontend` | Start coding |
-| `/coder` | `/code-reviewer` | Review code |
-| `/coder-frontend` | `/browser-verify` or `/code-reviewer` | Verify UI or review code |
-| `/browser-verify` | `/code-reviewer` | Review code after visual verify |
-| `/code-reviewer` | `/test-generator` | Generate tests |
-| `/test-generator` | `/debugger` or `/docs-generator` | Debug or update documentation |
-| `/docs-generator` | `/release` or `/finishing-branch` | Create release or complete branch |
-| `/release` | `/finishing-branch` | Complete the branch |
-| `/finishing-branch` | (end) | Workflow complete |
+Navigate to `http://localhost:5173` and log in with the Super Admin credentials created above (or register as a new player via ShareLink once a trainer creates one).
 
-## Skills
+---
 
-Skills are detailed instruction sets that define how Claude performs specific tasks.
+## Testing
 
-### Skill Categories
+### Backend Tests
 
-#### Understanding Phase
+Tests use a separate test Postgres database on port 5433:
 
-| Skill                  | Purpose                                                  |
-| ---------------------- | -------------------------------------------------------- |
-| `requirements-analyst` | Parse requirements from Confluence, decompose into tasks |
-| `brainstorming`        | Explore ideas through dialogue, create designs           |
+```bash
+cd backend
 
-#### Planning Phase
+# Start the test database (one time)
+docker compose up -d postgres_test
 
-| Skill                 | Purpose                              |
-| --------------------- | ------------------------------------ |
-| `architect`           | High-level architecture decisions    |
-| `api-designer`        | REST API design, DTOs, Swagger docs  |
-| `frontend-design`     | Create distinctive, production-grade UI |
-| `writing-plans`       | Create granular implementation plans |
+# Run all tests (serial; required for shared e2e DB)
+export NODE_ENV=test
+npx nx test api --maxWorkers=1
 
-#### Implementation Phase
-
-| Skill                 | Purpose                                                |
-| --------------------- | ------------------------------------------------------ |
-| `using-git-worktrees` | Create isolated git worktrees                          |
-| `coder`               | Backend implementation (Controller/Service/Repository) |
-| `coder-frontend`      | Frontend implementation (React/Vue/Angular)            |
-| `browser-verify`      | Visual verification of UI changes in the running app   |
-
-#### Quality Phase
-
-| Skill                            | Purpose                                    |
-| -------------------------------- | ------------------------------------------ |
-| `code-reviewer`                  | Code quality, security, performance review |
-| `test-generator`                 | Generate comprehensive tests               |
-| `systematic-debugger`            | Root cause analysis and debugging          |
-| `verify`                         | Run DoD checklist, report pass/fail        |
-
-#### Finalization Phase
-
-| Skill                     | Purpose                                       |
-| ------------------------- | --------------------------------------------- |
-| `release`                 | Create GitHub release with changelog          |
-| `finishing-branch`        | Complete branch work, create PR/merge         |
-| `documentation-generator` | Generate project documentation                |
-
-#### Utility
-
-| Skill                | Purpose                              |
-| -------------------- | ------------------------------------ |
-| `reflect`            | Turn mistakes into permanent rules   |
-| `skill-creator`      | Create new skills                    |
-| `accelerator-update` | Update accelerator to latest version |
-
-## Agents
-
-Agents are workers that execute skills in isolation and return structured output.
-
-### Agent Behavior
-
-Every agent:
-1. Uses the Skill tool to invoke its skill
-2. Executes the skill completely
-3. **STOPS** when done (no automatic chaining)
-4. Provides:
-   - **Context Summary**: 2-3 sentences of what was accomplished
-   - **Next Steps**: Suggestions for next command
-
-### Agent List
-
-| Agent                           | Skill                          | Purpose                     |
-| ------------------------------- | ------------------------------ | --------------------------- |
-| `requirements-analyst-agent`    | requirements-analyst           | Parse requirements          |
-| `brainstorming-agent`           | brainstorming                  | Design through dialogue     |
-| `writing-plans-agent`           | writing-plans                  | Create implementation plans |
-| `architect-agent`               | architect                      | Architecture decisions      |
-| `api-designer-agent`            | api-designer                   | REST API design             |
-| `using-git-worktrees-agent`     | using-git-worktrees            | Create isolated workspaces  |
-| `coder-agent`                   | coder                          | Backend implementation      |
-| `coder-frontend-agent`          | coder-frontend                 | Frontend implementation     |
-| `browser-verify-agent`          | browser-verify                 | Visual UI verification      |
-| `frontend-design-agent`         | frontend-design                | UI/UX design                |
-| `code-reviewer-agent`           | code-reviewer                  | Code quality review         |
-| `test-generator-agent`          | test-generator                 | Generate tests              |
-| `systematic-debugger-agent`     | systematic-debugger            | Root cause analysis         |
-| `verify-agent`                  | verify                         | Run DoD checklist           |
-| `release-agent`                 | release                        | Create GitHub releases      |
-| `finishing-branch-agent`        | finishing-branch               | Complete branch work        |
-| `documentation-generator-agent` | documentation-generator        | Generate docs               |
-| `reflect-agent`                 | reflect                        | Stabilize errors into rules |
-| `skill-creator-agent`           | skill-creator                  | Create new skills           |
-| `accelerator-update-agent`      | accelerator-update             | Update accelerator version  |
-
-### Key Principle: Stop After Completion
-
-Agents must:
-- Execute ONLY their specific skill
-- STOP when done
-- NOT chain to other skills automatically
-- NOT make workflow decisions
-
-The **user** decides the next step based on suggestions.
-
-## Hooks
-
-Hooks are shell commands that execute in response to Claude Code events.
-
-### Configured Hooks
-
-| Hook                      | Trigger                  | Purpose                    |
-| ------------------------- | ------------------------ | -------------------------- |
-| `SessionStart`            | Session begins           | Project context scanner    |
-| `PreToolUse:Write\|Edit`  | Before file modification | File naming validation     |
-| `PreToolUse:Bash`         | Before bash command      | Destructive command guard  |
-| `PostToolUse:Edit`        | After file edit          | Loop detection (7/10 edits)|
-| `Notification`            | Permission/input needed  | Desktop notification       |
-
-### Hook Return Codes
-
-| Code | Meaning                         |
-| ---- | ------------------------------- |
-| `0`  | Success, continue               |
-| `1`  | Failure, but continue (warning) |
-| `2`  | Failure, block operation        |
-
-See `.claude/hooks/README.md` for more examples.
-
-## Settings
-
-### Team Settings (`settings.json`)
-
-Shared configuration committed to git:
-
-```json
-{
-  "permissions": {
-    "allow": ["Read(**)", "Edit(**)", "Bash(git:*)"],
-    "deny": ["Read(.env)", "Bash(rm -rf:*)"]
-  },
-  "hooks": { ... }
-}
+# Watch mode (optional)
+npx nx test api --maxWorkers=1 --watch
 ```
 
-### Personal Settings (`settings.local.json`)
+**Coverage:** 330+ tests across 50+ suites (unit + integration + e2e).
 
-Personal overrides (gitignored):
+### Frontend Tests
 
-- Custom notifications
-- Personal preferences
-- Experimental features
+```bash
+cd frontend
 
-## Creating New Skills
+# Run tests once
+npm test
 
-1. **Create skill directory**: `.claude/skills/<skill-name>/`
-2. **Create SKILL.md** with frontmatter:
+# Watch mode
+npm run test:watch
 
-   ```markdown
-   ---
-   name: my-skill
-   description: "What this skill does"
-   ---
+# Coverage
+npm run test:coverage
+```
 
-   # Skill Name
+**Coverage:** 120+ tests covering components, pages, API client, and routing.
 
-   ## Overview
+---
 
-   ...
+## Architecture & Modules (Backend)
 
-   ---
+| Module | Responsibility | Type |
+|--------|----------------|------|
+| **AuthModule** | Login/logout, Passport local strategy, session wiring, password reset, email verify, rate limiting | Feature |
+| **UsersModule** | Super Admin directory, user CRUD, status transitions (active/inactive/deleted), GDPR anonymization | Feature |
+| **TrainersModule** | Trainer creation (SA-only), org-scoped queries, portal branding (logo + accent color) | Feature |
+| **CoachesModule** | Coach invite/accept, single-trainer enforcement, My Times availability, public profile | Feature |
+| **PlayersModule** | ShareLink registration, multi-trainer association, child profiles, context switching | Feature |
+| **ChildAccountModule** | Constrained sub-login auth, CASL child constraints (view/RSVP allowed, add-trainer/payment denied) | Feature |
+| **ShareLinksModule** | Generate static (unlimited) / unique (1-use, 7-day) links, validation, atomic consumption | Feature |
+| **ApprovalsModule** | Child purchase approval state machine (Pending → Approved/Denied/Expired), 48h auto-expiry | Feature |
+| **AvailabilityModule** | Player Best Times / Coach My Times, conflict checks, trainer override (logged) | Feature |
+| **ImpersonationModule** | SA impersonate users (1h cap), start/exit, bracketed audit, dual-actor attribution | Feature |
+| **AuthzModule** | `@Roles()` guard, CASL ability factory, tenant-aware policy enforcement | Cross-cutting |
+| **TenancyModule** | CLS-based tenant context, `TenantAwareRepository` base (structural filter), tenant interceptor | Cross-cutting |
+| **AuditModule** | Centralized audit writes (impersonation, deletion, override) | Cross-cutting |
 
-   ## Next Steps
+Full module dependency graph: see `specs/architect-architecture.md`.
 
-   After skill is complete, STOP and present these options:
+---
 
-   **Next by flow:** `/next-command [context]` - Why use this.
+## Key Design Patterns
 
-   **Alternatives:**
-   - `/alt-command [context]` - Why use this.
+### Multi-Tenancy (Org Isolation)
+
+- **Propagation:** Tenant context flows via `nestjs-cls` (AsyncLocalStorage), not request-scoped DI (preserves performance at scale).
+- **Filtering:** A `TenantAwareRepository` base automatically appends `WHERE trainerId = :ctx` to every org-bound query. Structural, not per-call — developers cannot forget it.
+- **Escape Hatch:** Super Admin / impersonation paths use explicit `withoutTenantScope()`, all audited.
+
+### Authentication & Authorization (Hybrid)
+
+- **AuthN:** Server-side sessions (Passport local + express-session on Postgres) with opaque httpOnly cookies. CSRF tokens on state-changing operations. No JWT.
+- **AuthZ:** Three independent layers:
+  1. **Role gate:** `@Roles()` decorator checks coarse role membership.
+  2. **Tenant isolation:** Structural filter (data layer).
+  3. **Child constraints:** CASL scoped to child sub-login rules (view/RSVP allowed, add-trainer/payment denied).
+
+### Session Model
+
+- **Timeouts:** 30-day sliding absolute lifetime, ~14-day idle cap, 1h hard impersonation cap.
+- **Payload:** Carries impersonation pair, child sub-login principal, and active context (active profile + active `trainerId`).
+- **Context propagation:** Active context is the source for CLS `TenantContext`.
+
+### Transactions & Atomicity
+
+Multi-write operations (GDPR delete, unique ShareLink consume, approval resolution, impersonation write) execute in a single service-method transaction. Single writes/reads use implicit transactions.
+
+### Scheduler (Approvals Expiry)
+
+- **Strategy:** In-process `@nestjs/schedule` cron guarded by Postgres advisory lock (efficient, no Redis).
+- **Idempotency:** Expiry sweep is a guarded conditional UPDATE — safe even on double-fire.
+
+---
+
+## Known Limitations & Gaps
+
+### Not Yet Implemented
+
+- **CI/CD:** No GitHub Actions / CI pipeline configured (Epic for later).
+- **Lint/Format:** Linting not wired in the CLI (manual runs available; no pre-commit hook).
+- **End-to-end Events/Payments:** Epics 02, 05 (out of scope for Epic-01).
+- **Frontend Screens (Pending):** Family/Approvals/Availability management UIs not yet built (Epic-02+).
+
+### Open Requirements
+
+The following requirement clarifications remain open pending product/stakeholder input:
+
+| ID | Title | Impact |
+|----|-------|--------|
+| Q-01.01 | Skill-level definitions (Beginner…Elite or custom?) | `PlayerProfile.skillLevel` is a free `varchar` placeholder until the enum is defined |
+| Q-01.02 | Age-group definition (birth year / age range / grade) | Child age model + availability/planning filters |
+| Q-01.04 | Full list of automated emails (welcome, reset, verify, invites, approvals, child-blocked, …) | EmailService uses a dev/log adapter; real provider + templates pending |
+| Q-01.06 | Should the coach be notified when their availability is overridden? | `AvailabilityService` has a tracked `TODO(Q-01.06)` stub awaiting Epic-02 |
+| Q-01.07 | Session timeout duration (1d / 7d / 30d?) | Defaults shipped (30-day sliding / ~14-day idle / 1h impersonation cap); value pending confirmation |
+
+---
+
+## Development Workflow
+
+### Adding a Feature
+
+1. **Create a feature module** under `backend/apps/api/src/modules/[feature]/`:
+   - `[feature].module.ts` — module definition
+   - `[feature].controller.ts` — HTTP handlers
+   - `[feature].service.ts` — business logic
+   - `[feature].repository.ts` — data access (extend `TenantAwareRepository` if org-bound)
+   - `entities/` — TypeORM entities
+   - `dto/` — validation & response DTOs
+   - `__tests__/` — unit + e2e tests
+
+2. **Import into `app.module.ts`** and ensure dependency order (see MANIFEST).
+
+3. **Test:** Write tests first (TDD). E2E tests use the test Postgres (`NODE_ENV=test`).
+
+4. **Commit:** One feature per commit; include test coverage in the message (e.g., `feat(coaches/C11): coach invite + acceptance`).
+
+### Database Changes
+
+1. **Create a migration** in `backend/apps/api/src/shared/database/migrations/`:
+   ```typescript
+   export class MigrationName1234567890000 {
+     async up(queryRunner) { /* SQL */ }
+     async down(queryRunner) { /* SQL */ }
+   }
    ```
 
-3. **Create command** (optional): `.claude/commands/<skill-name>.md`
-4. **Create agent** (optional): `.claude/agents/<skill-name>-agent.md`
+2. **Export from `run-migrations.mjs`** and test:
+   ```bash
+   DATABASE_URL=... node apps/api/src/shared/database/run-migrations.mjs
+   ```
 
-Use `/skill-creator` for guided skill creation.
+3. **Verify idempotency** — re-running should be safe.
 
-## Usage Examples
+### Building for Production
 
-### Start a New Feature
-
-```
-/requirements-analyst Parse the user story for payment processing
-```
-
-After completion, agent suggests: `/brainstorm [context]`
-
-```
-/brainstorm Based on requirements: payment processing for subscriptions,
-  supports Stripe/PayPal, needs webhooks for status updates
+**Backend:**
+```bash
+cd backend && npm run build
+# Output: dist/apps/api (ready for container or deploy)
 ```
 
-### Implementation Session
-
-```
-/coder Implement the PaymentService with Stripe integration
-```
-
-After completion, agent suggests: `/code-reviewer [context]`
-
-```
-/code-reviewer Review the PaymentService implementation in
-  src/payment/payment.service.ts
+**Frontend:**
+```bash
+cd frontend && npm run build
+# Output: dist/ (static assets; serve via CDN or static server)
 ```
 
-### Debugging Session
+---
 
+## Environment Variables
+
+### Backend (.env or process.env)
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `NODE_ENV` | `development` | `development`, `test`, `production` |
+| `DATABASE_URL` | — | PostgreSQL connection: `postgresql://user:pass@host:5432/db` |
+| `SESSION_SECRET` | — | Encryption key for session store; should be a strong random string in production |
+| `PORT` | 3000 | HTTP listen port |
+
+### Frontend (.env.* or import.meta.env)
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `VITE_API_BASE` | `/api` | API base path (proxied via Vite during dev) |
+
+For production deploys, ensure the frontend can reach the backend API at the correct origin (no localhost).
+
+---
+
+## Debugging & Troubleshooting
+
+### Backend
+
+**Postgres connection error:**
 ```
-/debugger Fix authentication token refresh not working
+error: connect ECONNREFUSED 127.0.0.1:5432
 ```
+→ Start Postgres: `docker compose up -d postgres`
 
-### Generate Tests
+**Migration failure:**
+→ Ensure `DATABASE_URL` is set and Postgres is running. Check the error message for SQL syntax or FK violations.
 
+**Session store locked:**
+→ The `sessions` table is created automatically by `connect-pg-simple`. If migrations fail, manually create it or drop and re-migrate.
+
+**Rate limiting errors (429):**
+→ Throttle keys (e.g., login attempts) reset after configured window (defaults: 10 requests/15 min). See `AuthModule` for tweaks.
+
+### Frontend
+
+**Proxy errors (502 on `/api/*`):**
+→ Ensure backend is running on `http://localhost:3000`. Check `vite.config.ts` proxy config.
+
+**CORS errors:**
+→ Backend sessions use `credentials: 'include'` (secure cookie). Ensure browser allows credentials and the origin is trusted.
+
+**Build errors:**
 ```
-/test-generator Generate tests for PaymentService
+npm run build
 ```
+→ Check TypeScript errors: `tsc -b`. Ensure all dependencies are installed.
 
-### Complete Feature
+---
 
-```
-/finishing-branch Complete payment feature branch
-```
+## Release & Deployment
 
-## Best Practices
+This section is a placeholder for future deployment guidance. Currently:
 
-1. **Follow the flow** - Use suggested next steps
-2. **Pass context** - Include context summaries when calling next command
-3. **Use git worktrees** for isolated development
-4. **Verify before claiming completion** - Run tests and build
-5. **Review code** before merging
-6. **Keep skills focused** - One skill, one purpose
+- **Backend:** Containerize via Dockerfile (TBD) and deploy to a Node-capable platform (Heroku, ECS, K8s, etc.).
+- **Frontend:** Build static assets and serve via CDN or static server (Vercel, Netlify, S3 + CloudFront, etc.).
 
-## Troubleshooting
+Ensure the frontend's API base URL points to the production backend origin.
 
-### Skill not triggering?
+---
 
-- Check skill name matches exactly
-- Verify SKILL.md frontmatter syntax
-- Ensure skill directory exists
+## Documentation
 
-### Agent not stopping?
+- **This README** — Run guide and architecture overview.
+- **`specs/MANIFEST.md`** — Project overview and key decisions.
+- **`specs/architect-architecture.md`** — Detailed system design, multi-tenancy, auth, transaction boundaries.
+- **`specs/api-designer-spec.md`** — Full API contracts, DTOs, error shapes, session model.
+- **`specs/frontend-design-spec.md`** — Pages, components, routing, state management, design tokens.
+- **`docs/documentation-generator-architecture-overview.md`** — Contributor-facing architecture summary with module map and PR history.
 
-- Check agent constraints in agent file
-- Verify skill has "Next Steps" section
-- Report if agent chains automatically
+For GDPR-related details, see `specs/architect-architecture.md` (D7 — delete model) and `modules/users/` implementation.
 
-### Context getting polluted?
+---
 
-- Use commands instead of asking directly
-- Each command runs in isolated context
-- Pass context summaries, not full history
+## License & Attribution
 
-## References
-
-- [Claude Code Documentation](https://docs.anthropic.com/claude-code)
-- [.claude/agents/](.claude/agents/) - Agent architecture details
-- [.claude/hooks/README.md](.claude/hooks/README.md) - Hook configuration guide
-- [.claude/skills/SKILL FLOW.md](.claude/skills/SKILL%20FLOW.md) - Skill flow diagram
+Built with [NestJS](https://nestjs.com/), [TypeORM](https://typeorm.io/), [React](https://react.dev/), [Vite](https://vitejs.dev/), and [TailwindCSS](https://tailwindcss.com/).
