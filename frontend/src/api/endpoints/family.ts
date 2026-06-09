@@ -52,8 +52,13 @@ interface PaginatedChildren {
 // ─── API ──────────────────────────────────────────────────────────────────────
 
 export const familyApi = {
-  listChildren: (): Promise<PaginatedChildren> =>
-    apiGet<PaginatedChildren>('/players/me/children'),
+  // The API returns a bare array for this small list; tolerate an envelope too.
+  listChildren: async (): Promise<ChildProfileResponse[]> => {
+    const res = await apiGet<ChildProfileResponse[] | PaginatedChildren>(
+      '/players/me/children',
+    );
+    return Array.isArray(res) ? res : res.data;
+  },
 
   createChild: (dto: CreateChildDto): Promise<ChildProfileResponse> =>
     apiPost<ChildProfileResponse>('/players/me/children', dto),

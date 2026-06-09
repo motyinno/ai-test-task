@@ -242,7 +242,7 @@ function ApprovalCard({
           }}
         >
           {approval.paymentType === 'USD'
-            ? `$${approval.amount.toFixed(2)}`
+            ? `$${Number(approval.amount).toFixed(2)}`
             : `${approval.amount} tokens`}
         </span>
         <PaymentChip type={approval.paymentType} />

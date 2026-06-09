@@ -307,7 +307,7 @@ export default function FamilyDashboard() {
     addTrainerMutation.mutate({ childId: addTrainerTarget.id, dto: values });
   };
 
-  const children = data?.data ?? [];
+  const children = data ?? [];
 
   return (
     <main

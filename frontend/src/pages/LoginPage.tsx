@@ -21,9 +21,10 @@ interface LoginFormValues {
 function getRoleRoute(role: string): string {
   switch (role) {
     case 'SUPER_ADMIN': return '/admin/users';
-    case 'TRAINER': return '/trainer/dashboard';
-    case 'COACH': return '/coach/dashboard';
-    default: return '/dashboard';
+    case 'TRAINER': return '/branding';
+    case 'COACH': return '/availability/coach';
+    case 'PLAYER': return '/family';
+    default: return '/profile';
   }
 }
 
