@@ -288,6 +288,81 @@ const PHASE_C_QUERIES = [
   `CREATE INDEX IF NOT EXISTS "IDX_tpa_trainer_id" ON "trainer_player_associations" ("trainer_id")`,
 ];
 
+// ── Phase D: Player/Parent Family ─────────────────────────────────────────────
+
+const PHASE_D_MIGRATION_NAME = 'PhaseDFamily1749600000000';
+
+const PHASE_D_QUERIES = [
+  // Add is_child column to player_profiles (idempotent)
+  `DO $$ BEGIN
+    IF NOT EXISTS (
+      SELECT 1 FROM information_schema.columns
+      WHERE table_name = 'player_profiles' AND column_name = 'is_child'
+    ) THEN
+      ALTER TABLE "player_profiles" ADD COLUMN "is_child" BOOLEAN NOT NULL DEFAULT FALSE;
+    END IF;
+  END $$`,
+
+  // child_logins
+  `CREATE TABLE IF NOT EXISTS "child_logins" (
+    "id"                UUID                   NOT NULL DEFAULT uuid_generate_v4(),
+    "child_profile_id"  UUID                   NOT NULL,
+    "parent_user_id"    UUID                   NOT NULL,
+    "child_username"    CHARACTER VARYING(50)  NOT NULL,
+    "password_hash"     TEXT                   NOT NULL,
+    "token_spend_allowed" BOOLEAN              NOT NULL DEFAULT FALSE,
+    "is_active"         BOOLEAN                NOT NULL DEFAULT TRUE,
+    "created_at"        TIMESTAMP              NOT NULL DEFAULT NOW(),
+    "updated_at"        TIMESTAMP              NOT NULL DEFAULT NOW(),
+    CONSTRAINT "PK_child_logins" PRIMARY KEY ("id"),
+    CONSTRAINT "UQ_child_login_username" UNIQUE ("child_username"),
+    CONSTRAINT "UQ_child_login_profile" UNIQUE ("child_profile_id")
+  )`,
+
+  `CREATE INDEX IF NOT EXISTS "IDX_child_login_username" ON "child_logins" ("child_username")`,
+
+  `CREATE INDEX IF NOT EXISTS "IDX_child_login_parent_user_id" ON "child_logins" ("parent_user_id")`,
+
+  // approval_status_enum
+  `DO $$ BEGIN
+    CREATE TYPE "public"."approval_status_enum" AS ENUM(
+      'PENDING', 'APPROVED', 'DENIED', 'EXPIRED', 'CANCELLED'
+    );
+  EXCEPTION WHEN duplicate_object THEN NULL;
+  END $$`,
+
+  // payment_type_enum
+  `DO $$ BEGIN
+    CREATE TYPE "public"."payment_type_enum" AS ENUM('USD', 'TOKEN');
+  EXCEPTION WHEN duplicate_object THEN NULL;
+  END $$`,
+
+  // approval_requests
+  `CREATE TABLE IF NOT EXISTS "approval_requests" (
+    "id"                CHARACTER VARYING       NOT NULL DEFAULT uuid_generate_v4()::text,
+    "child_profile_id"  CHARACTER VARYING       NOT NULL,
+    "parent_user_id"    CHARACTER VARYING       NOT NULL,
+    "event_ref"         CHARACTER VARYING       NULL DEFAULT NULL,
+    "amount"            NUMERIC(12,2)           NULL DEFAULT NULL,
+    "payment_type"      "public"."payment_type_enum"   NOT NULL,
+    "status"            "public"."approval_status_enum" NOT NULL DEFAULT 'PENDING',
+    "auto_approved"     BOOLEAN                 NOT NULL DEFAULT FALSE,
+    "expires_at"        TIMESTAMP               NULL DEFAULT NULL,
+    "resolved_at"       TIMESTAMP               NULL DEFAULT NULL,
+    "resolved_by"       CHARACTER VARYING       NULL DEFAULT NULL,
+    "parent_notes"      TEXT                    NULL DEFAULT NULL,
+    "created_at"        TIMESTAMP               NOT NULL DEFAULT NOW(),
+    "updated_at"        TIMESTAMP               NOT NULL DEFAULT NOW(),
+    CONSTRAINT "PK_approval_requests" PRIMARY KEY ("id")
+  )`,
+
+  `CREATE INDEX IF NOT EXISTS "IDX_approval_status_expires" ON "approval_requests" ("status", "expires_at")`,
+
+  `CREATE INDEX IF NOT EXISTS "IDX_approval_parent_status" ON "approval_requests" ("parent_user_id", "status")`,
+
+  `CREATE INDEX IF NOT EXISTS "IDX_approval_child_status" ON "approval_requests" ("child_profile_id", "status")`,
+];
+
 // ── Runner ────────────────────────────────────────────────────────────────────
 
 async function runMigration(client, name, timestamp, queries) {
@@ -342,6 +417,9 @@ async function run() {
     // Phase C: ShareLinks & Invitations
     await runMigration(client, PHASE_C_MIGRATION_NAME, 1749500000000, PHASE_C_QUERIES);
 
+    // Phase D: Player/Parent Family
+    await runMigration(client, PHASE_D_MIGRATION_NAME, 1749600000000, PHASE_D_QUERIES);
+
     // Verify key tables exist
     const tables = [
       'users',
@@ -351,6 +429,8 @@ async function run() {
       'user_deletion_log',
       'share_links',
       'trainer_player_associations',
+      'child_logins',
+      'approval_requests',
     ];
     for (const table of tables) {
       const result = await client.query(

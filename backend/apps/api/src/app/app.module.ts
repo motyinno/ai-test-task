@@ -16,6 +16,8 @@ import { StorageModule } from '../shared/integrations/storage/storage.module';
 import { ShareLinksModule } from '../modules/sharelinks/sharelinks.module';
 import { PlayersModule } from '../modules/players/players.module';
 import { CoachesModule } from '../modules/coaches/coaches.module';
+import { ApprovalsModule } from '../modules/approvals/approvals.module';
+import { ChildAccountModule } from '../modules/child-account/child-account.module';
 import { HealthController } from '../shared/health/health.controller';
 import { SessionTestController } from '../shared/session/session-test.controller';
 
@@ -34,6 +36,8 @@ const testControllers =
     ShareLinksModule,
     PlayersModule,
     CoachesModule,
+    ApprovalsModule,
+    ChildAccountModule,
     AuthzModule,
     ThrottlerModule.forRoot([
       {

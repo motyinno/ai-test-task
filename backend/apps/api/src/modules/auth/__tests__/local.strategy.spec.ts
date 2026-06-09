@@ -4,11 +4,15 @@ import { LocalStrategy } from '../strategies/local.strategy';
 import { PasswordService } from '../../../shared/crypto/password.service';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { User, UserRole, UserStatus } from '../../users/entities/user.entity';
+import { ChildLogin } from '../../child-account/entities/child-login.entity';
+import { PlayerProfile } from '../../users/entities/player-profile.entity';
 import { Repository } from 'typeorm';
 
 describe('LocalStrategy', () => {
   let strategy: LocalStrategy;
   let mockRepo: Partial<Repository<User>>;
+  let mockChildLoginRepo: Partial<Repository<ChildLogin>>;
+  let mockPlayerProfileRepo: Partial<Repository<PlayerProfile>>;
 
   const activeUser: User = {
     id: 'uuid-1',
@@ -28,12 +32,20 @@ describe('LocalStrategy', () => {
     mockRepo = {
       findOne: jest.fn(),
     };
+    mockChildLoginRepo = {
+      findOne: jest.fn().mockResolvedValue(null),
+    };
+    mockPlayerProfileRepo = {
+      findOne: jest.fn().mockResolvedValue(null),
+    };
 
     const mod = await Test.createTestingModule({
       providers: [
         LocalStrategy,
         PasswordService,
         { provide: getRepositoryToken(User), useValue: mockRepo },
+        { provide: getRepositoryToken(ChildLogin), useValue: mockChildLoginRepo },
+        { provide: getRepositoryToken(PlayerProfile), useValue: mockPlayerProfileRepo },
       ],
     }).compile();
 
