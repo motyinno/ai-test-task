@@ -5,7 +5,9 @@ import {
   IsPhoneNumber,
   IsBoolean,
   IsString,
+  IsEnum,
 } from 'class-validator';
+import { SkillLevel } from '../../users/entities/skill-level.enum';
 
 /**
  * UpdateProfileDto — email and role are read-only (omitted from this DTO).
@@ -55,6 +57,11 @@ export class UpdateProfileDto {
   @ApiPropertyOptional({ example: '7' })
   @IsOptional()
   jerseyNumber?: string;
+
+  @ApiPropertyOptional({ enum: SkillLevel, description: 'Trainer-assigned skill level (Q-01.01)' })
+  @IsOptional()
+  @IsEnum(SkillLevel)
+  skillLevel?: SkillLevel;
 
   // ── Parent-specific ─────────────────────────────────────────────────────
 

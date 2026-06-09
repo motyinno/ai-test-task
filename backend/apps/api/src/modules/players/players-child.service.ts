@@ -19,6 +19,7 @@ import { CreateChildDto } from './dto/create-child.dto';
 import { SwitchContextDto } from './dto/switch-context.dto';
 import { SessionContextService, ActiveContext } from '../auth/session-context.service';
 import type { Request } from 'express';
+import { deriveAge, deriveAgeGroup, AgeGroup } from '../../shared/utils/age.util';
 
 export interface ContextItem {
   profileId: string;
@@ -31,7 +32,11 @@ export interface ContextItem {
 export interface ChildProfileResponse {
   id: string;
   name: string;
+  dateOfBirth: string | null;
+  /** Derived from dateOfBirth at read time */
   age: number | null;
+  /** Derived age group (U6–U18) */
+  ageGroup: AgeGroup | null;
   gender: string | null;
   school: string | null;
   isChild: boolean;
@@ -83,10 +88,11 @@ export class PlayersChildService {
     parentUserId: string,
     dto: CreateChildDto,
   ): Promise<ChildProfileResponse> {
-    // BR-017: age 1–18 (DTO validates but double-check)
-    if (dto.age < 1 || dto.age > 18) {
+    // BR-017: derived age from dateOfBirth must be 1–18 (DTO validates, double-check here)
+    const derivedAge = deriveAge(dto.dateOfBirth);
+    if (derivedAge === null || derivedAge < 1 || derivedAge > 18) {
       throw new BadRequestException({
-        message: 'Child age must be between 1 and 18 (BR-017)',
+        message: 'Derived age from dateOfBirth must be between 1 and 18 (BR-017)',
         errorCode: 'INVALID_CHILD_AGE',
       });
     }
@@ -161,7 +167,7 @@ export class PlayersChildService {
           userId: childUser.id,
           parentUserId,
           name: dto.name,
-          age: dto.age,
+          dateOfBirth: dto.dateOfBirth,
           gender: dto.gender,
           school: dto.school ?? null,
           isChild: true,
@@ -215,7 +221,9 @@ export class PlayersChildService {
     return {
       id: childProfile.id,
       name: childProfile.name,
-      age: childProfile.age,
+      dateOfBirth: childProfile.dateOfBirth,
+      age: deriveAge(childProfile.dateOfBirth),
+      ageGroup: deriveAgeGroup(childProfile.dateOfBirth),
       gender: childProfile.gender,
       school: childProfile.school,
       isChild: childProfile.isChild,
@@ -250,7 +258,9 @@ export class PlayersChildService {
       results.push({
         id: profile.id,
         name: profile.name,
-        age: profile.age,
+        dateOfBirth: profile.dateOfBirth,
+        age: deriveAge(profile.dateOfBirth),
+        ageGroup: deriveAgeGroup(profile.dateOfBirth),
         gender: profile.gender,
         school: profile.school,
         isChild: profile.isChild,

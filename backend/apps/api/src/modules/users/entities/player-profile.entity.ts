@@ -8,6 +8,7 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 import { User } from './user.entity';
+import { SkillLevel } from './skill-level.enum';
 
 /**
  * PlayerProfile — 1:1 with User (role=PLAYER), also used for child accounts.
@@ -16,9 +17,9 @@ import { User } from './user.entity';
  * parentUserId: set for child profiles created by a parent player (FR-023).
  * When null = standalone player account.
  *
- * Open gaps:
- *   Q-01.01  skillLevel enum values not yet defined — stored as varchar
- *   Q-01.02  age-group model (D2) — `age` stored as plain int for now
+ * Resolved:
+ *   Q-01.01  skillLevel — Postgres enum (BEGINNER | INTERMEDIATE | ADVANCED | ELITE)
+ *   Q-01.02  dateOfBirth — stores ISO date; age + ageGroup derived on read
  */
 @Entity('player_profiles')
 export class PlayerProfile {
@@ -44,9 +45,14 @@ export class PlayerProfile {
   @Column({ length: 200 })
   name!: string;
 
-  /** Age in years — BR-017: 1–18 for child profiles */
-  @Column({ type: 'int', nullable: true, default: null })
-  age: number | null = null;
+  /**
+   * Date of birth (ISO date string, e.g. '2012-05-15') — Q-01.02.
+   * Age and ageGroup are derived at read time (see age.util.ts).
+   * BR-017: derived age must be 1–18 for child profiles.
+   * Replaces the deprecated `age` integer column.
+   */
+  @Column({ name: 'date_of_birth', type: 'date', nullable: true, default: null })
+  dateOfBirth: string | null = null;
 
   @Column({
     type: 'enum',
@@ -65,11 +71,17 @@ export class PlayerProfile {
   jerseyNumber: string | null = null;
 
   /**
-   * Skill level — Q-01.01 open gap: enum values TBD.
-   * Stored as varchar until the enum is defined.
+   * Skill level — trainer-assigned; Q-01.01 resolved.
+   * Postgres enum column (BEGINNER | INTERMEDIATE | ADVANCED | ELITE).
    */
-  @Column({ name: 'skill_level', length: 50, type: 'varchar', nullable: true, default: null })
-  skillLevel: string | null = null;
+  @Column({
+    name: 'skill_level',
+    type: 'enum',
+    enum: SkillLevel,
+    nullable: true,
+    default: null,
+  })
+  skillLevel: SkillLevel | null = null;
 
   /** URL to profile photo */
   @Column({ name: 'photo_url', type: 'varchar', nullable: true, default: null })

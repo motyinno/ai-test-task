@@ -10,6 +10,8 @@ import { CoachProfile } from '../../users/entities/coach-profile.entity';
 import { SetAvailabilityDto } from '../dto/set-availability.dto';
 import { AvailabilitySlotDto } from '../dto/availability-slot.dto';
 import { PlayerAvailabilityQueryDto } from '../dto/player-availability-query.dto';
+import { NotificationsService } from '../../notifications/notifications.service';
+import { EmailService } from '../../../shared/integrations/email/email.service';
 
 /** Build a mock AvailabilityRepository */
 function makeMockAvailabilityRepo() {
@@ -47,7 +49,7 @@ function makePlayerProfile(overrides: Partial<PlayerProfile> = {}): PlayerProfil
     userId: 'user-1',
     parentUserId: null,
     name: 'Alice',
-    age: null,
+    dateOfBirth: null,
     gender: null,
     school: null,
     jerseyNumber: null,
@@ -82,11 +84,20 @@ describe('AvailabilityService', () => {
   let availabilityRepo: ReturnType<typeof makeMockAvailabilityRepo>;
   let playerProfileRepo: { findOne: jest.Mock };
   let coachProfileRepo: { findOne: jest.Mock };
+  let notificationsService: { createAvailabilityOverrideNotification: jest.Mock };
+  let emailService: { send: jest.Mock; sentMessages: unknown[] };
 
   beforeEach(async () => {
     availabilityRepo = makeMockAvailabilityRepo();
     playerProfileRepo = { findOne: jest.fn() };
     coachProfileRepo = { findOne: jest.fn() };
+    notificationsService = {
+      createAvailabilityOverrideNotification: jest.fn().mockResolvedValue({ id: 'notif-1' }),
+    };
+    emailService = {
+      send: jest.fn().mockResolvedValue(undefined),
+      sentMessages: [],
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -94,6 +105,8 @@ describe('AvailabilityService', () => {
         { provide: AvailabilityRepository, useValue: availabilityRepo },
         { provide: getRepositoryToken(PlayerProfile), useValue: playerProfileRepo },
         { provide: getRepositoryToken(CoachProfile), useValue: coachProfileRepo },
+        { provide: NotificationsService, useValue: notificationsService },
+        { provide: EmailService, useValue: emailService },
       ],
     }).compile();
 
@@ -481,6 +494,102 @@ describe('AvailabilityService', () => {
       });
 
       expect(result.eventId).toBe('event-uuid-123');
+    });
+
+    // ─── GR4 (Q-01.06): Coach override notification ──────────────────────
+
+    it('GR4: creates in-app notification for coach on override (Q-01.06)', async () => {
+      const override = {
+        id: 'override-3',
+        coachId: 'coach-user-id-1',
+        overriddenByTrainerId: 'trainer-1',
+        eventId: null,
+        reason: 'Championship finals require all coaches',
+        createdAt: new Date(),
+      } as CoachAvailabilityOverride;
+      availabilityRepo.logOverride.mockResolvedValue(override);
+
+      await service.logCoachAvailabilityOverride({
+        coachId: 'coach-user-id-1',
+        overriddenByTrainerId: 'trainer-1',
+        eventId: null,
+        reason: 'Championship finals require all coaches',
+        coachUserId: 'coach-user-id-1',
+        coachName: 'Alice Coach',
+        trainerName: 'Mike Trainer',
+      });
+
+      // Wait for the async best-effort notification to complete
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      expect(notificationsService.createAvailabilityOverrideNotification).toHaveBeenCalledWith(
+        expect.objectContaining({
+          coachUserId: 'coach-user-id-1',
+          reason: 'Championship finals require all coaches',
+        }),
+      );
+    });
+
+    it('GR4 SANITY CHECK: removing notify call leaves zero notifications → red test', async () => {
+      // This test verifies the notification IS called.
+      // If createAvailabilityOverrideNotification is never called → test fails.
+      const override = {
+        id: 'override-4',
+        coachId: 'coach-user-id-1',
+        overriddenByTrainerId: 'trainer-1',
+        eventId: null,
+        reason: 'Some reason',
+        createdAt: new Date(),
+      } as CoachAvailabilityOverride;
+      availabilityRepo.logOverride.mockResolvedValue(override);
+
+      notificationsService.createAvailabilityOverrideNotification.mockClear();
+
+      await service.logCoachAvailabilityOverride({
+        coachId: 'coach-user-id-1',
+        overriddenByTrainerId: 'trainer-1',
+        eventId: null,
+        reason: 'Some reason',
+        coachUserId: 'coach-user-id-1',
+      });
+
+      // Wait for async call
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      // SANITY: if the notify call was removed, this would be 0 — test goes red
+      expect(notificationsService.createAvailabilityOverrideNotification).toHaveBeenCalledTimes(1);
+    });
+
+    it('GR4: sends override email when coachEmail is provided', async () => {
+      const override = {
+        id: 'override-5',
+        coachId: 'coach-user-id-1',
+        overriddenByTrainerId: 'trainer-1',
+        eventId: null,
+        reason: 'Tournament',
+        createdAt: new Date(),
+      } as CoachAvailabilityOverride;
+      availabilityRepo.logOverride.mockResolvedValue(override);
+
+      await service.logCoachAvailabilityOverride({
+        coachId: 'coach-user-id-1',
+        overriddenByTrainerId: 'trainer-1',
+        eventId: null,
+        reason: 'Tournament',
+        coachUserId: 'coach-user-id-1',
+        coachEmail: 'coach@example.com',
+        coachName: 'Alice Coach',
+        trainerName: 'Mike Trainer',
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      expect(emailService.send).toHaveBeenCalledWith(
+        expect.objectContaining({
+          to: 'coach@example.com',
+          template: 'availability-override',
+        }),
+      );
     });
   });
 });

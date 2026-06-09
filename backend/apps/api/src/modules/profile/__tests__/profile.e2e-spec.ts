@@ -255,7 +255,7 @@ describe('B7: ProfileModule E2E', () => {
         playerProfileRepo.create({
           userId: player.id,
           name: 'Alex Player',
-          age: 16,
+          dateOfBirth: '2010-01-01', // derived age ~16 (Q-01.02)
           gender: 'MALE',
           school: 'Lincoln High',
         }),
@@ -273,7 +273,8 @@ describe('B7: ProfileModule E2E', () => {
       expect(res.status).toBe(200);
       expect(res.body.role).toBe(UserRole.PLAYER);
       expect(res.body.name).toBe('Alex Player');
-      expect(res.body.age).toBe(16);
+      expect(res.body.dateOfBirth).toBe('2010-01-01');
+      expect(res.body.age).toBe(16); // derived from dateOfBirth
       expect(res.body.gender).toBe('MALE');
       expect(res.body.school).toBe('Lincoln High');
     });

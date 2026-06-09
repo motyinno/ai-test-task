@@ -123,7 +123,8 @@ describe('C7: POST /join/:code — new player registration', () => {
     const profile = await playerProfileRepo.findOne({ where: { userId: user!.id } });
     expect(profile).not.toBeNull();
     expect(profile!.name).toBe('Player C7');
-    expect(profile!.age).toBe(16);
+    // age column removed (Q-01.02) — dateOfBirth is null until Epic-08 pre-fill mapping
+    expect(profile!.dateOfBirth).toBeNull();
     expect(profile!.gender).toBe('MALE');
 
     // Verify TrainerPlayerAssociation created

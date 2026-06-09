@@ -14,6 +14,8 @@ import { SetAvailabilityDto } from './dto/set-availability.dto';
 import { PlayerAvailabilityQueryDto } from './dto/player-availability-query.dto';
 import { PlayerProfile } from '../users/entities/player-profile.entity';
 import { CoachProfile } from '../users/entities/coach-profile.entity';
+import { NotificationsService } from '../notifications/notifications.service';
+import { EmailService } from '../../shared/integrations/email/email.service';
 
 /**
  * AvailabilityService — business logic for E2–E5.
@@ -36,6 +38,8 @@ export class AvailabilityService {
     private readonly playerProfileRepo: Repository<PlayerProfile>,
     @InjectRepository(CoachProfile)
     private readonly coachProfileRepo: Repository<CoachProfile>,
+    private readonly notificationsService: NotificationsService,
+    private readonly emailService: EmailService,
   ) {}
 
   // ── E2: Player Best Times ─────────────────────────────────────────────────
@@ -185,16 +189,26 @@ export class AvailabilityService {
    *
    * BR-016: reason must be non-empty. Throws BadRequestException if omitted.
    *
-   * Q-01.06 OPEN GAP — Coach notification stub:
-   *   After logging the override, the coach SHOULD be notified (email/push).
-   *   This is deferred pending Epic-02 event domain + Q-01.06 resolution.
-   *   When implemented, call: await this.notifyCoachOfOverride(coachId, override);
+   * Q-01.06 RESOLVED (GR4): after logging the override, the coach is notified via:
+   *   1. In-app Notification (type AVAILABILITY_OVERRIDE, includes reason)
+   *   2. Email (via EmailService, template 'availability-override')
+   *
+   * Notification/email failures are caught-and-logged (best-effort) so they never
+   * fail the primary override-logging operation.
    */
   async logCoachAvailabilityOverride(data: {
     coachId: string;
     overriddenByTrainerId: string;
     eventId: string | null;
     reason: string;
+    /** Coach's user ID for notification lookup (same as coachId in most contexts) */
+    coachUserId?: string;
+    /** Coach name for notification display */
+    coachName?: string;
+    /** Trainer name for notification display */
+    trainerName?: string;
+    /** Coach email address for email notification */
+    coachEmail?: string;
   }): Promise<CoachAvailabilityOverride> {
     if (!data.reason || data.reason.trim().length === 0) {
       throw new BadRequestException({
@@ -205,12 +219,42 @@ export class AvailabilityService {
 
     const override = await this.availabilityRepo.logOverride(data);
 
-    // Q-01.06 OPEN GAP: coach notification stub
-    // TODO(Q-01.06): notify coach of override when Epic-02 event domain is ready.
-    // await this.notifyCoachOfOverride(data.coachId, override);
-    this.logger.warn(
-      `[Q-01.06 STUB] Coach ${data.coachId} overridden by trainer ${data.overriddenByTrainerId} — coach notification NOT YET IMPLEMENTED`,
-    );
+    // Q-01.06 RESOLVED (GR4): notify the coach — in-app + email (best-effort)
+    const coachUserId = data.coachUserId ?? data.coachId;
+    const coachName = data.coachName ?? 'Coach';
+    const trainerName = data.trainerName ?? 'Trainer';
+
+    this.notificationsService
+      .createAvailabilityOverrideNotification({
+        coachUserId,
+        coachName,
+        trainerName,
+        reason: data.reason,
+      })
+      .catch((err: Error) => {
+        this.logger.error(
+          `[Q-01.06] Failed to create in-app notification for coach ${coachUserId}: ${err.message}`,
+        );
+      });
+
+    if (data.coachEmail) {
+      this.emailService
+        .send({
+          to: data.coachEmail,
+          subject: '', // resolved by template
+          template: 'availability-override',
+          data: {
+            coachName,
+            trainerName,
+            reason: data.reason,
+          },
+        })
+        .catch((err: Error) => {
+          this.logger.error(
+            `[Q-01.06] Failed to send override email to ${data.coachEmail}: ${err.message}`,
+          );
+        });
+    }
 
     return override;
   }

@@ -492,6 +492,99 @@ const PHASE_G_QUERIES = [
     ON "trainer_player_associations" ("player_profile_id")`,
 ];
 
+// ── GR1: SkillLevel enum + GR2: dateOfBirth (Q-01.01 + Q-01.02) ─────────────
+
+const PHASE_GR12_MIGRATION_NAME = 'GR1_GR2_SkillLevelEnum_DateOfBirth1749950000000';
+
+const PHASE_GR12_QUERIES = [
+  // GR1: Create the player_skill_level Postgres enum type
+  `DO $$ BEGIN
+    CREATE TYPE "public"."player_skill_level_enum" AS ENUM(
+      'BEGINNER', 'INTERMEDIATE', 'ADVANCED', 'ELITE'
+    );
+  EXCEPTION WHEN duplicate_object THEN NULL;
+  END $$`,
+
+  // GR1: Alter skill_level column from VARCHAR to the new enum type.
+  // The column is currently always NULL (no real data), so the USING cast is safe.
+  // We set all non-enum values to NULL first to ensure a safe cast.
+  `DO $$ BEGIN
+    IF EXISTS (
+      SELECT 1 FROM information_schema.columns
+      WHERE table_name = 'player_profiles'
+        AND column_name = 'skill_level'
+        AND data_type = 'character varying'
+    ) THEN
+      -- Zero out any non-enum values first (safety for dev data)
+      UPDATE "player_profiles"
+        SET "skill_level" = NULL
+        WHERE "skill_level" IS NOT NULL
+          AND "skill_level" NOT IN ('BEGINNER', 'INTERMEDIATE', 'ADVANCED', 'ELITE');
+      ALTER TABLE "player_profiles"
+        ALTER COLUMN "skill_level" DROP DEFAULT;
+      ALTER TABLE "player_profiles"
+        ALTER COLUMN "skill_level"
+        TYPE "public"."player_skill_level_enum"
+        USING "skill_level"::"public"."player_skill_level_enum";
+    END IF;
+  END $$`,
+
+  // GR2: Add date_of_birth DATE column (nullable, default null)
+  `DO $$ BEGIN
+    IF NOT EXISTS (
+      SELECT 1 FROM information_schema.columns
+      WHERE table_name = 'player_profiles' AND column_name = 'date_of_birth'
+    ) THEN
+      ALTER TABLE "player_profiles"
+        ADD COLUMN "date_of_birth" DATE NULL DEFAULT NULL;
+    END IF;
+  END $$`,
+
+  // GR2: Drop the age INTEGER column (no real data — dev/test only).
+  // BR-017 enforcement moves to the service layer via dateOfBirth derivation.
+  `DO $$ BEGIN
+    IF EXISTS (
+      SELECT 1 FROM information_schema.columns
+      WHERE table_name = 'player_profiles' AND column_name = 'age'
+    ) THEN
+      ALTER TABLE "player_profiles" DROP COLUMN "age";
+    END IF;
+  END $$`,
+];
+
+// ── GR4: Notifications ──────────────────────────────────────────────────────
+
+const PHASE_GR4_MIGRATION_NAME = 'GR4_Notifications1749960000000';
+
+const PHASE_GR4_QUERIES = [
+  // notification_type_enum
+  `DO $$ BEGIN
+    CREATE TYPE "public"."notification_type_enum" AS ENUM(
+      'AVAILABILITY_OVERRIDE',
+      'GENERAL'
+    );
+  EXCEPTION WHEN duplicate_object THEN NULL;
+  END $$`,
+
+  // notifications table
+  `CREATE TABLE IF NOT EXISTS "notifications" (
+    "id"         UUID                                    NOT NULL DEFAULT uuid_generate_v4(),
+    "user_id"    UUID                                    NOT NULL,
+    "type"       "public"."notification_type_enum"      NOT NULL DEFAULT 'GENERAL',
+    "title"      CHARACTER VARYING(255)                  NOT NULL,
+    "body"       TEXT                                    NOT NULL,
+    "read"       BOOLEAN                                 NOT NULL DEFAULT FALSE,
+    "created_at" TIMESTAMP                               NOT NULL DEFAULT NOW(),
+    CONSTRAINT "PK_notifications" PRIMARY KEY ("id")
+  )`,
+
+  `CREATE INDEX IF NOT EXISTS "IDX_notifications_user_id"
+    ON "notifications" ("user_id")`,
+
+  `CREATE INDEX IF NOT EXISTS "IDX_notifications_user_read"
+    ON "notifications" ("user_id", "read")`,
+];
+
 // ── Runner ────────────────────────────────────────────────────────────────────
 
 async function runMigration(client, name, timestamp, queries) {
@@ -558,6 +651,12 @@ async function run() {
     // Phase G: Branding + Indexing Pass
     await runMigration(client, PHASE_G_MIGRATION_NAME, 1749900000000, PHASE_G_QUERIES);
 
+    // GR1 + GR2: SkillLevel enum + dateOfBirth (drops age column)
+    await runMigration(client, PHASE_GR12_MIGRATION_NAME, 1749950000000, PHASE_GR12_QUERIES);
+
+    // GR4: Notifications
+    await runMigration(client, PHASE_GR4_MIGRATION_NAME, 1749960000000, PHASE_GR4_QUERIES);
+
     // Verify key tables exist
     const tables = [
       'users',
@@ -574,6 +673,7 @@ async function run() {
       'audit_logs',
       'impersonation_logs',
       'portal_brandings',
+      'notifications',
     ];
     for (const table of tables) {
       const result = await client.query(

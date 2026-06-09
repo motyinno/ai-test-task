@@ -43,7 +43,7 @@ function makeProfile(overrides: Partial<PlayerProfile> = {}): PlayerProfile {
     userId: 'dddddddd-4444-0000-0000-000000000004',
     parentUserId: PARENT_USER_ID,
     name: 'Maya',
-    age: 10,
+    dateOfBirth: '2016-03-01', // derived age ~10 (Q-01.02)
     gender: 'FEMALE',
     school: null,
     jerseyNumber: null,

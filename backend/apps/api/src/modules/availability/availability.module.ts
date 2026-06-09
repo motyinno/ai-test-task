@@ -7,6 +7,7 @@ import { AvailabilityService } from './availability.service';
 import { TenancyModule } from '../../shared/tenancy/tenancy.module';
 import { PlayerProfile } from '../users/entities/player-profile.entity';
 import { CoachProfile } from '../users/entities/coach-profile.entity';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 /**
  * AvailabilityModule — shared module for E2–E5.
@@ -29,6 +30,7 @@ import { CoachProfile } from '../users/entities/coach-profile.entity';
       CoachProfile,
     ]),
     TenancyModule,
+    NotificationsModule,
   ],
   providers: [AvailabilityRepository, AvailabilityService],
   exports: [AvailabilityService, AvailabilityRepository],

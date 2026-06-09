@@ -149,7 +149,7 @@ describe('D2/D4/D5/D6: Child profile + context switching + sub-login constraints
       .set('X-CSRF-Token', csrf)
       .send({
         name: 'Child D4',
-        age: 10,
+        dateOfBirth: '2016-03-01', // derived age ~10 as of 2026-06-09 (Q-01.02)
         gender: 'MALE',
         school: 'Test School',
         trainerIds: [trainerId],
@@ -158,7 +158,8 @@ describe('D2/D4/D5/D6: Child profile + context switching + sub-login constraints
     expect(res.status).toBe(201);
     expect(res.body.name).toBe('Child D4');
     expect(res.body.isChild).toBe(true);
-    expect(res.body.age).toBe(10);
+    expect(res.body.dateOfBirth).toBe('2016-03-01');
+    expect(res.body.age).toBe(10); // derived
     expect(res.body.parentUserId).toBe(parentId);
 
     // Verify DB was created
@@ -167,34 +168,36 @@ describe('D2/D4/D5/D6: Child profile + context switching + sub-login constraints
     expect(child?.name).toBe('Child D4');
   });
 
-  // ── Test 2: BR-017 age validation (age=0 → 400) ──────────────────────────
+  // ── Test 2: BR-017 age validation (age < 1 or > 18 → 400) ──────────────────────────
 
-  it('[D2][BR-017] age=0 → 400 validation error', async () => {
+  it('[D2][BR-017] dateOfBirth implying age < 1 → 400 validation error (SANITY CHECK)', async () => {
     const csrfRes = await request(app.getHttpServer())
       .get('/api/v1/auth/csrf')
       .set('Cookie', sessionCookie);
     const csrf = csrfRes.body.token;
 
+    // Born 6 months ago → age 0 → below minimum
     const res = await request(app.getHttpServer())
       .post('/api/v1/players/me/children')
       .set('Cookie', sessionCookie)
       .set('X-CSRF-Token', csrf)
-      .send({ name: 'Too Young', age: 0, gender: 'MALE' });
+      .send({ name: 'Too Young', dateOfBirth: '2026-03-01', gender: 'MALE' });
 
     expect(res.status).toBe(400);
   });
 
-  it('[D2][BR-017] age=19 → 400 validation error', async () => {
+  it('[D2][BR-017] dateOfBirth implying age > 18 → 400 validation error (SANITY CHECK)', async () => {
     const csrfRes = await request(app.getHttpServer())
       .get('/api/v1/auth/csrf')
       .set('Cookie', sessionCookie);
     const csrf = csrfRes.body.token;
 
+    // Born 2005 → age ~21 → above maximum
     const res = await request(app.getHttpServer())
       .post('/api/v1/players/me/children')
       .set('Cookie', sessionCookie)
       .set('X-CSRF-Token', csrf)
-      .send({ name: 'Too Old', age: 19, gender: 'MALE' });
+      .send({ name: 'Too Old', dateOfBirth: '2005-03-01', gender: 'MALE' });
 
     expect(res.status).toBe(400);
   });

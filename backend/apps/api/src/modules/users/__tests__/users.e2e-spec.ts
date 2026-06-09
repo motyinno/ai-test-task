@@ -789,7 +789,7 @@ describe('B2-B6: Users API (Super Admin)', () => {
         playerProfileRepo.create({
           userId: playerUser.id,
           name: 'Alex Smith',
-          age: 16,
+          dateOfBirth: '2010-01-01', // derived age ~16 (Q-01.02)
           gender: 'MALE',
           school: 'Springfield High',
           jerseyNumber: '10',
@@ -814,15 +814,15 @@ describe('B2-B6: Users API (Super Admin)', () => {
 
       expect(delRes.status).toBe(200);
 
-      // Assert: PlayerProfile PII columns scrubbed; age/gender kept for analytics (US-01.13)
+      // Assert: PlayerProfile PII columns scrubbed; dateOfBirth/gender kept for analytics (US-01.13)
       const profileAfter = await playerProfileRepo.findOne({ where: { userId: playerUser.id } });
       expect(profileAfter).not.toBeNull(); // row preserved
       expect(profileAfter!.name).toBe('Deleted User');
       expect(profileAfter!.school).toBeNull();
       expect(profileAfter!.jerseyNumber).toBeNull();
       expect(profileAfter!.photoUrl).toBeNull();
-      // age and gender are retained for analytics per US-01.13
-      expect(profileAfter!.age).toBe(16);
+      // dateOfBirth and gender are retained for analytics per US-01.13 (Q-01.02)
+      expect(profileAfter!.dateOfBirth).toBe('2010-01-01');
       expect(profileAfter!.gender).toBe('MALE');
     });
 

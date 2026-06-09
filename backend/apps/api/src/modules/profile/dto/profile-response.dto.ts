@@ -1,5 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { UserRole } from '../../users/entities/user.entity';
+import { SkillLevel } from '../../users/entities/skill-level.enum';
+import { AgeGroup } from '../../../shared/utils/age.util';
 
 /**
  * ProfileResponseDto — role-specific fields populated based on the caller's role.
@@ -64,8 +66,14 @@ export class ProfileResponseDto {
   @ApiPropertyOptional()
   name?: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ description: 'Date of birth (ISO date, YYYY-MM-DD)' })
+  dateOfBirth?: string;
+
+  @ApiPropertyOptional({ description: 'Derived age in years from dateOfBirth' })
   age?: number;
+
+  @ApiPropertyOptional({ description: 'Derived age-group bucket (U6–U18)' })
+  ageGroup?: AgeGroup;
 
   @ApiPropertyOptional()
   gender?: string;
@@ -76,8 +84,8 @@ export class ProfileResponseDto {
   @ApiPropertyOptional()
   jerseyNumber?: string;
 
-  @ApiPropertyOptional()
-  skillLevel?: string;
+  @ApiPropertyOptional({ enum: SkillLevel })
+  skillLevel?: SkillLevel;
 
   @ApiPropertyOptional()
   parentUserId?: string;
