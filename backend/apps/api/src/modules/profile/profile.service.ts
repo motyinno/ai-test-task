@@ -11,6 +11,7 @@ import { PlayerProfile } from '../users/entities/player-profile.entity';
 import { StorageService, StorageFile } from '../../shared/integrations/storage/storage.service';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { ProfileResponseDto } from './dto/profile-response.dto';
+import { deriveAge, deriveAgeGroup } from '../../shared/utils/age.util';
 
 /**
  * ProfileService — self-profile reads/writes for the authenticated user.
@@ -191,7 +192,9 @@ export class ProfileService {
       id: profile?.id ?? user.id,
       parentUserId: profile?.parentUserId ?? undefined,
       name: profile?.name,
-      age: profile?.age ?? undefined,
+      dateOfBirth: profile?.dateOfBirth ?? undefined,
+      age: deriveAge(profile?.dateOfBirth) ?? undefined,
+      ageGroup: deriveAgeGroup(profile?.dateOfBirth) ?? undefined,
       gender: profile?.gender ?? undefined,
       school: profile?.school ?? undefined,
       jerseyNumber: profile?.jerseyNumber ?? undefined,
@@ -234,6 +237,7 @@ export class ProfileService {
     const updates: Partial<PlayerProfile> = {};
     if (dto.school !== undefined) updates.school = dto.school ?? null;
     if (dto.jerseyNumber !== undefined) updates.jerseyNumber = dto.jerseyNumber ?? null;
+    if (dto.skillLevel !== undefined) updates.skillLevel = dto.skillLevel ?? null;
 
     if (Object.keys(updates).length > 0) {
       await this.playerProfileRepo.update(profile.id, updates);
