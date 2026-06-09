@@ -6,8 +6,13 @@ export type ApprovalStatus = 'PENDING' | 'APPROVED' | 'DENIED' | 'EXPIRED' | 'CA
 export interface ApprovalRequestDto {
   id: string;
   childProfileId: string;
-  childName: string;
-  eventRef: string;
+  /**
+   * The approvals list returns the raw approval entity, which carries
+   * childProfileId but NO human-readable childName. Treat as optional and
+   * degrade gracefully. Backend DTO gap tracked separately.
+   */
+  childName?: string;
+  eventRef?: string;
   amount: number;
   paymentType: PaymentType;
   status: ApprovalStatus;

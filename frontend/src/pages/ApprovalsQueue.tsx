@@ -21,6 +21,17 @@ import { ApiError } from '@/api/errors';
 
 const APPROVALS_KEY = ['approvals'] as const;
 
+/**
+ * Human-readable label for the player on an approval. The list DTO omits the
+ * child's name, so degrade gracefully rather than rendering "undefined" in
+ * visible text or aria-labels.
+ */
+function approvalChildLabel(a: { childName?: string; childProfileId: string }): string {
+  if (a.childName) return a.childName;
+  if (a.childProfileId) return `Player ${a.childProfileId}`;
+  return 'this player';
+}
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function useReducedMotion(): boolean {
@@ -175,9 +186,10 @@ function ApprovalCard({
   denying,
   reducedMotion,
 }: ApprovalCardProps) {
+  const childLabel = approvalChildLabel(approval);
   return (
     <article
-      aria-label={`Approval request for ${approval.childName}`}
+      aria-label={`Approval request for ${childLabel}`}
       style={{
         backgroundColor: 'var(--surface)',
         borderRadius: 'var(--radius-md)',
@@ -206,7 +218,7 @@ function ApprovalCard({
               margin: '0 0 var(--space-xxs)',
             }}
           >
-            {approval.childName}
+            {childLabel}
           </h2>
           <p
             style={{
@@ -256,7 +268,7 @@ function ApprovalCard({
           loading={approving}
           disabled={denying}
           onClick={() => onApprove(approval.id)}
-          aria-label={`Approve request for ${approval.childName}`}
+          aria-label={`Approve request for ${childLabel}`}
         >
           Approve
         </Button>
@@ -266,7 +278,7 @@ function ApprovalCard({
           loading={denying}
           disabled={approving}
           onClick={() => onDeny(approval.id)}
-          aria-label={`Deny request for ${approval.childName}`}
+          aria-label={`Deny request for ${childLabel}`}
         >
           Deny
         </Button>
@@ -278,9 +290,10 @@ function ApprovalCard({
 // ─── Auto-approved FYI card ───────────────────────────────────────────────────
 
 function FyiCard({ approval }: { approval: ApprovalRequestDto }) {
+  const childLabel = approvalChildLabel(approval);
   return (
     <article
-      aria-label={`Auto-approved spend for ${approval.childName}`}
+      aria-label={`Auto-approved spend for ${childLabel}`}
       style={{
         backgroundColor: 'var(--bg)',
         borderRadius: 'var(--radius-md)',
@@ -300,7 +313,7 @@ function FyiCard({ approval }: { approval: ApprovalRequestDto }) {
             color: 'var(--text-secondary)',
           }}
         >
-          {approval.childName} — {approval.eventRef}
+          {childLabel} — {approval.eventRef}
         </span>
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)' }}>
@@ -395,7 +408,7 @@ export default function ApprovalsQueue() {
 
   // Collect unique children from pending approvals for token toggle UI
   const childrenFromPending = pending.reduce<Record<string, string>>((acc, a) => {
-    if (!acc[a.childProfileId]) acc[a.childProfileId] = a.childName;
+    if (!acc[a.childProfileId]) acc[a.childProfileId] = approvalChildLabel(a);
     return acc;
   }, {});
 

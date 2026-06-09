@@ -13,7 +13,7 @@ export interface ChildProfileResponse {
   name: string;
   dateOfBirth: string;   // ISO date "YYYY-MM-DD"
   age: number;           // derived by backend
-  ageGroup: string;      // e.g. "U14" (derived)
+  ageGroup?: string;     // e.g. "U14" (derived) — not present in current list DTO
   gender: Gender;
   school?: string;
   skillLevel?: SkillLevel;
@@ -23,7 +23,15 @@ export interface ChildProfileResponse {
 
 export interface TrainerAssociation {
   trainerId: string;
-  trainerName: string;
+  /**
+   * The list DTO (GET /players/me/children) does NOT include a human-readable
+   * trainer name — it returns { trainerId, status, connectedAt }. Treat the name
+   * as optional and degrade gracefully (show trainerId) when absent.
+   * Backend DTO gap tracked separately.
+   */
+  trainerName?: string;
+  status?: string;
+  connectedAt?: string;
 }
 
 export interface CreateChildDto {

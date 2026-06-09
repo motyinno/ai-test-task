@@ -14,6 +14,7 @@ import {
   type ChildProfileResponse,
   type CreateChildDto,
   type SkillLevel,
+  type TrainerAssociation,
 } from '@/api/endpoints/family';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -21,6 +22,17 @@ import { Sheet } from '@/components/ui/Sheet';
 import { ApiError } from '@/api/errors';
 
 const CHILDREN_QUERY_KEY = ['players', 'me', 'children'] as const;
+
+/**
+ * Human-readable label for a trainer association. The list DTO omits the
+ * trainer's name, so degrade gracefully to the trainerId (or a generic label)
+ * rather than rendering "undefined".
+ */
+function trainerDisplayName(t: TrainerAssociation): string {
+  if (t.trainerName) return t.trainerName;
+  if (t.trainerId) return t.trainerId;
+  return 'this trainer';
+}
 
 // ─── Skill-level chip (Q-01.01) ──────────────────────────────────────────────
 
@@ -104,20 +116,22 @@ function PlayerCard({ child, onAddTrainer, onRemoveTrainer }: PlayerCardProps) {
         }}
       >
         <span>Age: <strong style={{ color: 'var(--text-primary)' }}>{child.age}</strong></span>
-        <span>
-          Group:{' '}
-          <strong
-            style={{
-              color: 'var(--brand-text)',
-              fontWeight: 600,
-              textTransform: 'uppercase',
-              fontSize: 'var(--text-eyebrow)',
-              letterSpacing: '0.05em',
-            }}
-          >
-            {child.ageGroup}
-          </strong>
-        </span>
+        {child.ageGroup && (
+          <span>
+            Group:{' '}
+            <strong
+              style={{
+                color: 'var(--brand-text)',
+                fontWeight: 600,
+                textTransform: 'uppercase',
+                fontSize: 'var(--text-eyebrow)',
+                letterSpacing: '0.05em',
+              }}
+            >
+              {child.ageGroup}
+            </strong>
+          </span>
+        )}
         {child.school && <span>School: {child.school}</span>}
       </div>
 
@@ -149,7 +163,9 @@ function PlayerCard({ child, onAddTrainer, onRemoveTrainer }: PlayerCardProps) {
           </p>
         ) : (
           <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 'var(--space-xxs)' }}>
-            {child.trainers.map((t) => (
+            {child.trainers.map((t) => {
+              const trainerLabel = trainerDisplayName(t);
+              return (
               <li
                 key={t.trainerId}
                 style={{
@@ -165,11 +181,11 @@ function PlayerCard({ child, onAddTrainer, onRemoveTrainer }: PlayerCardProps) {
                     color: 'var(--text-primary)',
                   }}
                 >
-                  {t.trainerName}
+                  {trainerLabel}
                 </span>
                 <button
-                  onClick={() => onRemoveTrainer(child.id, t.trainerId, t.trainerName)}
-                  aria-label={`Remove trainer ${t.trainerName}`}
+                  onClick={() => onRemoveTrainer(child.id, t.trainerId, trainerLabel)}
+                  aria-label={`Remove trainer ${trainerLabel}`}
                   style={{
                     background: 'none',
                     border: '1px solid var(--danger)',
@@ -187,7 +203,8 @@ function PlayerCard({ child, onAddTrainer, onRemoveTrainer }: PlayerCardProps) {
                   Remove
                 </button>
               </li>
-            ))}
+              );
+            })}
           </ul>
         )}
       </div>
