@@ -76,10 +76,17 @@ export class PlayerProfile {
   photoUrl: string | null = null;
 
   /**
+   * True when this profile belongs to a child account (age 1–18, parentUserId set).
+   * False for standalone (adult) player accounts.
+   */
+  @Column({ name: 'is_child', type: 'boolean', default: false })
+  isChild: boolean = false;
+
+  /**
    * Per-child token spend approval setting (FR-029).
    * When true: TOKEN purchases for this child do NOT require parent approval.
    */
-  @Column({ name: 'allow_token_spend_without_approval', default: false })
+  @Column({ name: 'allow_token_spend_without_approval', type: 'boolean', default: false })
   allowTokenSpendWithoutApproval: boolean = false;
 
   @CreateDateColumn({ name: 'created_at' })

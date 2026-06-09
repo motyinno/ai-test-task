@@ -10,11 +10,19 @@ import { PasswordService } from '../../shared/crypto/password.service';
 import { User } from '../users/entities/user.entity';
 import { PasswordResetToken } from './entities/password-reset-token.entity';
 import { EmailVerificationToken } from './entities/email-verification-token.entity';
+import { ChildLogin } from '../child-account/entities/child-login.entity';
+import { PlayerProfile } from '../users/entities/player-profile.entity';
 
 @Module({
   imports: [
     PassportModule,
-    TypeOrmModule.forFeature([User, PasswordResetToken, EmailVerificationToken]),
+    TypeOrmModule.forFeature([
+      User,
+      PasswordResetToken,
+      EmailVerificationToken,
+      ChildLogin,
+      PlayerProfile,
+    ]),
     EmailModule,
   ],
   controllers: [AuthController],

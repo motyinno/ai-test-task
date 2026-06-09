@@ -85,10 +85,9 @@ export class PlayersService {
     dto: JoinViaLinkDto,
     ctx: JoinContext,
   ): Promise<JoinResult> {
-    // Step 1: Validate and resolve the link (throws for LINK_NOT_FOUND/REVOKED/EXPIRED/USED)
-    const link = await this.shareLinksService.resolveLink(code);
-
-    // Step 2: Gate D — block child principals (FR-027)
+    // Step 1: Gate D — block child principals BEFORE link resolution (FR-027).
+    // Child block must fire regardless of link validity so a child can never
+    // consume a link even if they somehow know a valid code.
     if (ctx.isChild) {
       // Send best-effort parent notification email
       if (ctx.parentUserId) {
@@ -97,8 +96,8 @@ export class PlayersService {
           this.emailService.send({
             to: parentUser.email,
             subject: 'Your child attempted to join a trainer',
-            text: `Your child tried to join a trainer via a share link. Trainer ID: ${link.trainerId}. If you want to enroll your child, please register yourself as the account holder.`,
-            data: { trainerId: link.trainerId, linkCode: code },
+            text: `Your child tried to join a trainer via a share link (code: ${code}). Please register on their behalf.`,
+            data: { linkCode: code },
           }).catch((err) => {
             this.logger.warn(`[EMAIL] Parent notification failed: ${(err as Error).message}`);
           });
@@ -110,6 +109,9 @@ export class PlayersService {
         errorCode: 'CHILD_SHARELINK_BLOCKED',
       });
     }
+
+    // Step 2: Validate and resolve the link (throws for LINK_NOT_FOUND/REVOKED/EXPIRED/USED)
+    const link = await this.shareLinksService.resolveLink(code);
 
     // Step 3: Route based on link type
     if (link.type === ShareLinkType.UNIQUE) {
