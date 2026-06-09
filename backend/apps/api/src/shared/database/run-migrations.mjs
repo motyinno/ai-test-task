@@ -424,6 +424,50 @@ const PHASE_E_QUERIES = [
     ON "coach_availability_overrides" ("overridden_by_trainer_id")`,
 ];
 
+// ── Phase F: Impersonation + Audit ───────────────────────────────────────────
+
+const PHASE_F_MIGRATION_NAME = 'PhaseFImpersonation1749800000000';
+
+const PHASE_F_QUERIES = [
+  // audit_logs (F1 — generic cross-cutting audit channel)
+  `CREATE TABLE IF NOT EXISTS "audit_logs" (
+    "id"                        UUID                   NOT NULL DEFAULT uuid_generate_v4(),
+    "actor_id"                  CHARACTER VARYING(255) NOT NULL,
+    "acting_admin_id"           CHARACTER VARYING(255) NULL DEFAULT NULL,
+    "via_impersonation_log_id"  CHARACTER VARYING(255) NULL DEFAULT NULL,
+    "action"                    CHARACTER VARYING(100) NOT NULL,
+    "target_type"               CHARACTER VARYING(100) NULL DEFAULT NULL,
+    "target_id"                 CHARACTER VARYING(255) NULL DEFAULT NULL,
+    "metadata"                  JSONB                  NULL DEFAULT NULL,
+    "created_at"                TIMESTAMP              NOT NULL DEFAULT NOW(),
+    CONSTRAINT "PK_audit_logs" PRIMARY KEY ("id")
+  )`,
+
+  `CREATE INDEX IF NOT EXISTS "IDX_audit_logs_actor_id"
+    ON "audit_logs" ("actor_id")`,
+
+  `CREATE INDEX IF NOT EXISTS "IDX_audit_logs_acting_admin_id"
+    ON "audit_logs" ("acting_admin_id")`,
+
+  // impersonation_logs (F2 — bracket-style impersonation audit)
+  `CREATE TABLE IF NOT EXISTS "impersonation_logs" (
+    "id"                    UUID                   NOT NULL DEFAULT uuid_generate_v4(),
+    "admin_id"              CHARACTER VARYING(255) NOT NULL,
+    "impersonated_user_id"  CHARACTER VARYING(255) NOT NULL,
+    "start_at"              TIMESTAMP              NOT NULL,
+    "end_at"                TIMESTAMP              NULL DEFAULT NULL,
+    "duration_seconds"      INTEGER                NULL DEFAULT NULL,
+    "created_at"            TIMESTAMP              NOT NULL DEFAULT NOW(),
+    CONSTRAINT "PK_impersonation_logs" PRIMARY KEY ("id")
+  )`,
+
+  `CREATE INDEX IF NOT EXISTS "IDX_impersonation_logs_admin_id"
+    ON "impersonation_logs" ("admin_id")`,
+
+  `CREATE INDEX IF NOT EXISTS "IDX_impersonation_logs_impersonated_user_id"
+    ON "impersonation_logs" ("impersonated_user_id")`,
+];
+
 // ── Runner ────────────────────────────────────────────────────────────────────
 
 async function runMigration(client, name, timestamp, queries) {
@@ -484,6 +528,9 @@ async function run() {
     // Phase E: Availability
     await runMigration(client, PHASE_E_MIGRATION_NAME, 1749700000000, PHASE_E_QUERIES);
 
+    // Phase F: Impersonation + Audit
+    await runMigration(client, PHASE_F_MIGRATION_NAME, 1749800000000, PHASE_F_QUERIES);
+
     // Verify key tables exist
     const tables = [
       'users',
@@ -497,6 +544,8 @@ async function run() {
       'approval_requests',
       'availability_slots',
       'coach_availability_overrides',
+      'audit_logs',
+      'impersonation_logs',
     ];
     for (const table of tables) {
       const result = await client.query(
