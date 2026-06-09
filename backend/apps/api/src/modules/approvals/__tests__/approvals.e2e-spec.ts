@@ -87,7 +87,7 @@ describe('D8: Approvals API e2e', () => {
       userId: childUser.id,
       parentUserId: parentId,
       name: 'Child User',
-      age: 10,
+      dateOfBirth: '2016-03-01', // derived age ~10 (Q-01.02)
       gender: 'MALE',
       isChild: true,
     }));

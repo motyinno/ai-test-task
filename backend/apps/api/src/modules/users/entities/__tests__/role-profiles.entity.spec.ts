@@ -210,7 +210,7 @@ describe('B1: Role Profile Entities', () => {
       expect(profile.userId).toBe(user.id);
       expect(profile.parentUserId).toBeNull();
       expect(profile.name).toBe('John Player');
-      expect(profile.age).toBeNull();
+      expect(profile.dateOfBirth).toBeNull();
       expect(profile.skillLevel).toBeNull();
     });
 
@@ -237,13 +237,13 @@ describe('B1: Role Profile Entities', () => {
           userId: childUser.id,
           parentUserId: parentUser.id,
           name: 'Child One',
-          age: 10,
+          dateOfBirth: '2016-03-01',
           gender: 'MALE',
         }),
       );
 
       expect(childProfile.parentUserId).toBe(parentUser.id);
-      expect(childProfile.age).toBe(10);
+      expect(childProfile.dateOfBirth).toBe('2016-03-01');
       expect(childProfile.gender).toBe('MALE');
     });
 

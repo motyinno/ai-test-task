@@ -182,10 +182,12 @@ export class PlayersService {
       }));
 
       // Create player profile
+      // Note: age field removed (Q-01.02) — dateOfBirth is the stored field.
+      // JoinViaLinkDto.age is kept for Epic-08 pre-fill mapping (boundary: Epic-08).
       const profile = await em.save(PlayerProfile, em.create(PlayerProfile, {
         userId: user.id,
         name: dto.playerName,
-        age: dto.age ?? null,
+        dateOfBirth: null, // Epic-08 will map age → dateOfBirth from JoinViaLinkDto
         gender: dto.gender ?? null,
       }));
 
