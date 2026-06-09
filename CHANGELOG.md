@@ -5,9 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Epic-01] - 2026-06-09
+## [1.0.0] - 2026-06-09
 
-**Complete Foundation:** User Management & Authentication (Phases A–G) merged to master (commits 6cd9ebc3 and earlier). Backend fully tested (330+ tests, 50+ suites). Gap resolutions (Q-01.01/02/04/06) in PR #10 (pending merge, branch `task-001/gap-resolutions`). Frontend foundation + family/approvals/availability screens in PR #11 (pending merge, branch `task-001/frontend-screens`). Platform ready for downstream epics (Events, Payments, Scheduling, etc.).
+**Epic-01 — User Management & Authentication (first release).** All phases A–G plus the
+gap resolutions (PR #10) and the frontend — foundation + Family/Approvals/Availability/
+Branding screens (PR #11) — merged to master. Verified on the merged tree: backend
+408 tests / 54 suites + dev-mode boot; frontend 170 tests; both builds green.
+
+Multi-role platform (Super Admin · Trainer · Coach · Player/Parent): server-side session
+auth (cookie + CSRF, no JWT), multi-tenant isolation (CLS + structural repo filter),
+hybrid RBAC (`@Roles` + CASL child constraints), ShareLink invitations, family accounts
+(children, context switching, child sub-login), child purchase approvals (USD/token, 48h
+auto-deny), availability (Best Times / My Times + override), impersonation with dual-actor
+audit, portal branding, GDPR delete, plus transactional email + in-app notifications.
+Resolved open questions: skill levels (enum), age (dateOfBirth-derived), email (SMTP
+adapter), coach-override notification. Boundary decisions recorded for Epic-05 (payments)
+& Epic-08 (camp conversion). Platform ready for downstream epics.
 
 ### Added
 
