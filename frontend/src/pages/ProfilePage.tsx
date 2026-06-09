@@ -5,7 +5,7 @@
 import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
-import { profileApi, type UpdateProfileDto } from '@/api/endpoints/profile';
+import { profileApi, type UpdateProfileDto, type SkillLevel } from '@/api/endpoints/profile';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { useMe } from '@/providers/auth-provider';
@@ -23,6 +23,7 @@ interface ProfileFormValues {
   // Player
   school: string;
   jerseyNumber: string;
+  skillLevel: SkillLevel | '';
   // Parent
   emergencyContact: string;
 }
@@ -51,6 +52,7 @@ export default function ProfilePage() {
         publicProfile: profile.publicProfile ?? false,
         school: profile.school ?? '',
         jerseyNumber: profile.jerseyNumber ?? '',
+        skillLevel: profile.skillLevel ?? '',
         emergencyContact: profile.emergencyContact ?? '',
       });
     }
@@ -79,6 +81,7 @@ export default function ProfilePage() {
     if (role === 'PLAYER') {
       dto.school = values.school || undefined;
       dto.jerseyNumber = values.jerseyNumber || undefined;
+      dto.skillLevel = (values.skillLevel || undefined) as SkillLevel | undefined;
     }
     if (role === 'PLAYER' && !me?.isChild) {
       dto.emergencyContact = values.emergencyContact || undefined;
@@ -328,6 +331,78 @@ export default function ProfilePage() {
                     label="Jersey Number"
                     {...register('jerseyNumber')}
                   />
+                  {/* Q-01.01: Skill level select */}
+                  <div>
+                    <label
+                      htmlFor="skillLevel"
+                      style={{
+                        display: 'block',
+                        fontFamily: 'var(--font-body)',
+                        fontSize: 'var(--text-caption)',
+                        fontWeight: 600,
+                        color: 'var(--text-secondary)',
+                        marginBottom: '0.375rem',
+                      }}
+                    >
+                      Skill Level
+                    </label>
+                    <select
+                      id="skillLevel"
+                      {...register('skillLevel')}
+                      style={{
+                        width: '100%',
+                        fontFamily: 'var(--font-body)',
+                        fontSize: 'var(--text-body)',
+                        color: 'var(--text-primary)',
+                        backgroundColor: 'var(--surface)',
+                        border: '1px solid var(--border-soft)',
+                        borderRadius: 'var(--radius-sm)',
+                        padding: '0 10px',
+                        height: '40px',
+                        outline: 'none',
+                      }}
+                    >
+                      <option value="">Select skill level</option>
+                      <option value="BEGINNER">Beginner</option>
+                      <option value="INTERMEDIATE">Intermediate</option>
+                      <option value="ADVANCED">Advanced</option>
+                      <option value="ELITE">Elite</option>
+                    </select>
+                  </div>
+                  {/* Q-01.02: Age + age group display (read-only, derived by backend) */}
+                  {(profile?.age !== undefined || profile?.ageGroup) && (
+                    <div
+                      style={{
+                        display: 'flex',
+                        gap: 'var(--space-md)',
+                        fontFamily: 'var(--font-body)',
+                        fontSize: 'var(--text-body)',
+                        color: 'var(--text-secondary)',
+                      }}
+                    >
+                      {profile?.age !== undefined && (
+                        <span>
+                          Age: <strong style={{ color: 'var(--text-primary)' }}>{profile.age}</strong>
+                        </span>
+                      )}
+                      {profile?.ageGroup && (
+                        <span>
+                          Group:{' '}
+                          <strong
+                            style={{
+                              color: 'var(--brand-text)',
+                              fontWeight: 600,
+                              textTransform: 'uppercase',
+                              fontSize: 'var(--text-eyebrow)',
+                              letterSpacing: '0.05em',
+                            }}
+                          >
+                            {profile.ageGroup}
+                          </strong>
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </>
               )}
 

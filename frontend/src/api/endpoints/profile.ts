@@ -1,5 +1,8 @@
 import { apiGet, apiPatch } from '../client';
 
+/** Q-01.01 resolved: SkillLevel enum */
+export type SkillLevel = 'BEGINNER' | 'INTERMEDIATE' | 'ADVANCED' | 'ELITE';
+
 export interface ProfileResponseDto {
   id: string;
   role: string;
@@ -11,9 +14,13 @@ export interface ProfileResponseDto {
   bio?: string;
   credentials?: string;
   publicProfile?: boolean;
-  // Player-specific
+  // Player-specific (Q-01.01, Q-01.02)
   school?: string;
   jerseyNumber?: string;
+  skillLevel?: SkillLevel;
+  dateOfBirth?: string;   // ISO date (Q-01.02)
+  age?: number;           // derived (Q-01.02)
+  ageGroup?: string;      // derived (Q-01.02)
   // Parent-specific
   emergencyContact?: string;
   // Meta
@@ -31,6 +38,7 @@ export interface UpdateProfileDto {
   publicProfile?: boolean;
   school?: string;
   jerseyNumber?: string;
+  skillLevel?: SkillLevel;    // Q-01.01
   emergencyContact?: string;
 }
 
