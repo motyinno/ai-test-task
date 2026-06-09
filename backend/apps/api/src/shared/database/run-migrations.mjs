@@ -1,8 +1,8 @@
 /**
- * Unified migration runner — Phase A + Phase B.
+ * Unified migration runner — Phase A through Phase G.
  *
  * Single source of truth for all schema migrations (M4 fix).
- * run-phase-b-migrations.mjs has been removed; this file now covers both phases.
+ * run-phase-b-migrations.mjs has been removed; this file now covers all phases.
  *
  * Prerequisite: PostgreSQL must have the uuid-ossp extension enabled:
  *   CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
@@ -468,6 +468,30 @@ const PHASE_F_QUERIES = [
     ON "impersonation_logs" ("impersonated_user_id")`,
 ];
 
+// ── Phase G: Branding + Indexing Pass ────────────────────────────────────────
+
+const PHASE_G_MIGRATION_NAME = 'PhaseGBranding1749900000000';
+
+const PHASE_G_QUERIES = [
+  // portal_brandings (G1 — per-trainer white-label branding)
+  `CREATE TABLE IF NOT EXISTS "portal_brandings" (
+    "id"                  UUID                   NOT NULL DEFAULT uuid_generate_v4(),
+    "trainer_id"          CHARACTER VARYING(255) NOT NULL,
+    "primary_color_hex"   CHARACTER VARYING(7)   NOT NULL DEFAULT '#2563EB',
+    "logo_url"            CHARACTER VARYING(2048) NULL DEFAULT NULL,
+    "created_at"          TIMESTAMP              NOT NULL DEFAULT NOW(),
+    "updated_at"          TIMESTAMP              NOT NULL DEFAULT NOW(),
+    CONSTRAINT "PK_portal_brandings" PRIMARY KEY ("id")
+  )`,
+
+  `CREATE UNIQUE INDEX IF NOT EXISTS "IDX_portal_branding_trainer_id"
+    ON "portal_brandings" ("trainer_id")`,
+
+  // G2: trainer_player_associations.player_profile_id — missing reverse lookup index
+  `CREATE INDEX IF NOT EXISTS "IDX_tpa_player_profile_id"
+    ON "trainer_player_associations" ("player_profile_id")`,
+];
+
 // ── Runner ────────────────────────────────────────────────────────────────────
 
 async function runMigration(client, name, timestamp, queries) {
@@ -531,6 +555,9 @@ async function run() {
     // Phase F: Impersonation + Audit
     await runMigration(client, PHASE_F_MIGRATION_NAME, 1749800000000, PHASE_F_QUERIES);
 
+    // Phase G: Branding + Indexing Pass
+    await runMigration(client, PHASE_G_MIGRATION_NAME, 1749900000000, PHASE_G_QUERIES);
+
     // Verify key tables exist
     const tables = [
       'users',
@@ -546,6 +573,7 @@ async function run() {
       'coach_availability_overrides',
       'audit_logs',
       'impersonation_logs',
+      'portal_brandings',
     ];
     for (const table of tables) {
       const result = await client.query(
