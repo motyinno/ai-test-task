@@ -40,6 +40,13 @@ function formatCountdown(remainingMs: number): string {
   return `${minutes}:${seconds.toString().padStart(2, '0')}`;
 }
 
+/** Self-contained slot: reads me, only renders when impersonating. */
+export function ImpersonationBannerSlot() {
+  const { data: me } = useMe();
+  if (!me?.impersonatedBy) return null;
+  return <ImpersonationBanner startedAt={Date.now()} />;
+}
+
 export function ImpersonationBanner({ startedAt }: ImpersonationBannerProps) {
   const { data: me } = useMe();
   const qc = useQueryClient();

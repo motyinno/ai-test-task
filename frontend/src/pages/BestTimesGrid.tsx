@@ -110,7 +110,7 @@ function gridReducer(state: GridState, action: GridAction): GridState {
     case 'LOAD':
       return { selected: slotsToKeys(action.slots) };
     case 'CLEAR':
-      return { selected: new Set() };
+      return { selected: new Set<SlotKey>() };
     default:
       return state;
   }
@@ -260,7 +260,7 @@ export default function BestTimesGrid() {
   const profileId = me?.activeContext?.profileId;
   const qc = useQueryClient();
 
-  const [state, dispatch] = useReducer(gridReducer, { selected: new Set() });
+  const [state, dispatch] = useReducer(gridReducer, { selected: new Set<SlotKey>() });
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const [isDirty, setIsDirty] = useState(false);
 

@@ -198,7 +198,7 @@ const AVAILABILITY_KEY = ['coaches', 'me', 'availability'] as const;
 
 export default function MyTimesGrid() {
   const qc = useQueryClient();
-  const [state, dispatch] = useReducer(gridReducer, { selected: new Set() });
+  const [state, dispatch] = useReducer(gridReducer, { selected: new Set<SlotKey>() });
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const [isDirty, setIsDirty] = useState(false);
 
