@@ -2,7 +2,7 @@ import { ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsOptional,
   MaxLength,
-  IsPhoneNumber,
+  Matches,
   IsBoolean,
   IsString,
   IsEnum,
@@ -27,7 +27,9 @@ export class UpdateProfileDto {
 
   @ApiPropertyOptional({ example: '+12025551234' })
   @IsOptional()
-  @IsPhoneNumber()
+  @Matches(/^[+\d][\d\s().-]{6,19}$/, {
+    message: 'phone must be a valid phone number',
+  })
   phone?: string;
 
   // ── Coach-specific ──────────────────────────────────────────────────────

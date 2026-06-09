@@ -91,6 +91,8 @@ export default function LoginPage() {
             height: 64,
             width: 'auto',
             maxWidth: '200px',
+            // The default logo art is black; render it light on the dark panel.
+            filter: 'brightness(0) invert(1)',
           }}
         />
         <div

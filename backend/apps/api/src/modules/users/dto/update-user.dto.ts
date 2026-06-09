@@ -2,7 +2,7 @@ import { ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsOptional,
   MaxLength,
-  IsPhoneNumber,
+  Matches,
   IsEnum,
 } from 'class-validator';
 import { UserStatus } from '../entities/user.entity';
@@ -33,7 +33,9 @@ export class UpdateUserDto {
     description: 'Phone number — applied to TrainerProfile only',
   })
   @IsOptional()
-  @IsPhoneNumber()
+  @Matches(/^[+\d][\d\s().-]{6,19}$/, {
+    message: 'phone must be a valid phone number',
+  })
   phone?: string;
 
   @ApiPropertyOptional({ enum: UserStatus })
