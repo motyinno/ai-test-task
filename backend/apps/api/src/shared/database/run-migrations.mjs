@@ -585,6 +585,27 @@ const PHASE_GR4_QUERIES = [
     ON "notifications" ("user_id", "read")`,
 ];
 
+// ── InvitationTokens: account-onboarding invite links ───────────────────────
+
+const PHASE_INVITES_MIGRATION_NAME = 'InvitationTokens1750000000000';
+
+const PHASE_INVITES_QUERIES = [
+  `CREATE TABLE IF NOT EXISTS "invitation_tokens" (
+    "id"         UUID      NOT NULL DEFAULT uuid_generate_v4(),
+    "token"      TEXT      NOT NULL,
+    "user_id"    UUID      NOT NULL,
+    "expires_at" TIMESTAMP NOT NULL,
+    "used_at"    TIMESTAMP NULL DEFAULT NULL,
+    "created_at" TIMESTAMP NOT NULL DEFAULT NOW(),
+    CONSTRAINT "PK_invitation_tokens" PRIMARY KEY ("id"),
+    CONSTRAINT "FK_invitation_tokens_user"
+      FOREIGN KEY ("user_id") REFERENCES "users" ("id") ON DELETE CASCADE
+  )`,
+
+  `CREATE UNIQUE INDEX IF NOT EXISTS "UQ_invitation_tokens_token"
+    ON "invitation_tokens" ("token")`,
+];
+
 // ── Runner ────────────────────────────────────────────────────────────────────
 
 async function runMigration(client, name, timestamp, queries) {
@@ -656,6 +677,9 @@ async function run() {
 
     // GR4: Notifications
     await runMigration(client, PHASE_GR4_MIGRATION_NAME, 1749960000000, PHASE_GR4_QUERIES);
+
+    // InvitationTokens: account-onboarding invite links
+    await runMigration(client, PHASE_INVITES_MIGRATION_NAME, 1750000000000, PHASE_INVITES_QUERIES);
 
     // Verify key tables exist
     const tables = [

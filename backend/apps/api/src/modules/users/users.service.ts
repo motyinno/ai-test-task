@@ -11,6 +11,7 @@ import { User, UserRole, UserStatus } from './entities/user.entity';
 import { TrainerProfile } from './entities/trainer-profile.entity';
 import { CoachProfile } from './entities/coach-profile.entity';
 import { PlayerProfile } from './entities/player-profile.entity';
+import { InvitationToken } from '../auth/entities/invitation-token.entity';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 import { PasswordService } from '../../shared/crypto/password.service';
@@ -35,7 +36,20 @@ export class UsersService {
     private readonly coachProfileRepo: Repository<CoachProfile>,
     @InjectRepository(PlayerProfile)
     private readonly playerProfileRepo: Repository<PlayerProfile>,
+    @InjectRepository(InvitationToken)
+    private readonly invitationTokenRepo: Repository<InvitationToken>,
   ) {}
+
+  /** Invitation links live for 7 days. */
+  private static readonly INVITE_EXPIRY_MS = 7 * 24 * 60 * 60 * 1000;
+
+  /**
+   * Public base URL of the web app, used to build absolute invite links.
+   * Falls back to the dev Vite origin when APP_BASE_URL is unset.
+   */
+  private get appBaseUrl(): string {
+    return (process.env['APP_BASE_URL'] ?? 'http://localhost:5173').replace(/\/$/, '');
+  }
 
   // ─── B2: GET /users (SA directory) ─────────────────────────────────────────
 
@@ -115,6 +129,19 @@ export class UsersService {
       return savedUser;
     });
 
+    // INVITE_LINK: persist the single-use invitation token so /join-invite/:token
+    // can validate it and let the trainer set their own password.
+    if (inviteToken) {
+      await this.invitationTokenRepo.save(
+        this.invitationTokenRepo.create({
+          token: inviteToken,
+          userId: user.id,
+          expiresAt: new Date(Date.now() + UsersService.INVITE_EXPIRY_MS),
+          usedAt: null,
+        }),
+      );
+    }
+
     // M2: Send email AFTER commit, best-effort — mail failure must never fail the request.
     // Any send error is caught-and-logged, not propagated to the caller.
     this.sendOnboardingEmail(dto, tempPassword, inviteToken).catch((err) => {
@@ -143,11 +170,12 @@ export class UsersService {
         data: { tempPassword, email: dto.email },
       });
     } else if (inviteToken) {
+      const inviteUrl = `${this.appBaseUrl}/join-invite/${inviteToken}`;
       await this.emailService.send({
         to: dto.email,
         subject: 'You have been invited to join',
-        text: `Welcome ${dto.trainerName}! Your invite link: /join-invite/${inviteToken}`,
-        data: { inviteToken, email: dto.email },
+        text: `Welcome ${dto.trainerName}! Set your password to activate your account: ${inviteUrl} (link expires in 7 days)`,
+        data: { inviteToken, inviteUrl, email: dto.email },
       });
     }
   }

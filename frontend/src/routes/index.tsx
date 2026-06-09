@@ -6,6 +6,7 @@ import { RequireRole } from './RequireRole';
 // Lazy-loaded pages — existing
 const LoginPage = lazy(() => import('@/pages/LoginPage'));
 const JoinPage = lazy(() => import('@/pages/JoinPage'));
+const JoinInvitePage = lazy(() => import('@/pages/JoinInvitePage'));
 const ProfilePage = lazy(() => import('@/pages/ProfilePage'));
 const UsersPage = lazy(() => import('@/pages/admin/UsersPage'));
 const ChangePasswordPage = lazy(() => import('@/pages/ChangePasswordPage'));
@@ -29,6 +30,7 @@ export function AppRoutes() {
         {/* Public routes */}
         <Route path="/login" element={<LoginPage />} />
         <Route path="/join/:code" element={<JoinPage />} />
+        <Route path="/join-invite/:token" element={<JoinInvitePage />} />
         <Route path="/change-password" element={<ChangePasswordPage />} />
         <Route path="/forbidden" element={<ForbiddenPage />} />
 

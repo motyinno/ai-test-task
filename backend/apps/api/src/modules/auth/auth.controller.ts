@@ -2,6 +2,7 @@ import {
   Controller,
   Post,
   Get,
+  Param,
   UseGuards,
   Req,
   Body,
@@ -21,6 +22,7 @@ import type { MeResponseDto } from './dto/me-response.dto';
 import { SessionContextService } from './session-context.service';
 import { RequestPasswordResetDto } from './dto/request-password-reset.dto';
 import { ConfirmPasswordResetDto } from './dto/confirm-password-reset.dto';
+import { AcceptInvitationDto } from './dto/accept-invitation.dto';
 
 type SessionRecord = Record<string, unknown>;
 
@@ -100,6 +102,28 @@ export class AuthController {
   @HttpCode(200)
   async confirmPasswordReset(@Body() dto: ConfirmPasswordResetDto): Promise<{ ok: boolean }> {
     await this.authService.confirmPasswordReset(dto.token, dto.newPassword);
+    return { ok: true };
+  }
+
+  /**
+   * GET /auth/invite/:token — validate an invitation token (preview before
+   * setting a password). Public; returns the invitee's email.
+   */
+  @Get('invite/:token')
+  async validateInvitation(@Param('token') token: string): Promise<{ valid: boolean; email: string }> {
+    const { email } = await this.authService.validateInvitation(token);
+    return { valid: true, email };
+  }
+
+  /**
+   * POST /auth/invite/accept — accept an invitation by setting a password.
+   * Public + CSRF-exempt (pre-session onboarding flow, like password-reset).
+   */
+  @Throttle({ default: { ttl: 60_000, limit: process.env['NODE_ENV'] === 'test' ? 10000 : 10 } })
+  @Post('invite/accept')
+  @HttpCode(200)
+  async acceptInvitation(@Body() dto: AcceptInvitationDto): Promise<{ ok: boolean }> {
+    await this.authService.acceptInvitation(dto.token, dto.password);
     return { ok: true };
   }
 
