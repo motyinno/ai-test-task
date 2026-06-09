@@ -536,8 +536,14 @@ Event-assignment conflict override UI/flow (Epic-02) · ApprovalRequest creation
 payment processing (Epic-02/05) · ShareLink usage analytics consumption (Epic-06) ·
 Camp-to-User pre-fill (Epic-08).
 
-## Open Gaps (resolve before the dependent task)
+## Open Gaps — RESOLVED (2026-06-09)
 
-Q-01.01 skill-level enum (B1/B7) · Q-01.02 age-group model (D2) · Q-01.04 email provider +
-full template list (A18) · Q-01.06 coach-override notification (E5) · Epic-05 payment field
-ownership (B1 TrainerProfile) · Epic-08 camp field mapping (C5 variant).
+Decisions captured; resolution plan: `writing-plans-gap-resolution-plan.md` (branch
+`task-001/gap-resolutions`).
+
+- **Q-01.01** skill-level → **RESOLVED:** fixed enum `BEGINNER|INTERMEDIATE|ADVANCED|ELITE`.
+- **Q-01.02** age-group → **RESOLVED:** store `dateOfBirth`, derive age + age-group (drop `age` int).
+- **Q-01.04** email → **RESOLVED:** pluggable EmailService + Nodemailer SMTP adapter (dev=log default) + full template registry.
+- **Q-01.06** coach-override notify → **RESOLVED:** notify coach (email + in-app Notification) on override.
+- **Epic-05** payment fields → **RESOLVED (boundary):** TrainerProfile payment fields are nullable placeholders owned by Epic-05; Epic-01 stores only.
+- **Epic-08** camp mapping → **RESOLVED (boundary):** `JoinViaLinkDto` fields are the pre-fill target; mapping implemented in Epic-08.
