@@ -130,7 +130,8 @@ describe('C3: POST /sharelinks', () => {
     expect(res.status).toBe(201);
     expect(res.body.id).toBeDefined();
     expect(res.body.code).toBeDefined();
-    expect(res.body.url).toBe(`/api/v1/join/${res.body.code}`);
+    // URL is the user-facing join page (frontend route), built from APP_BASE_URL.
+    expect(res.body.url).toMatch(new RegExp(`/join/${res.body.code}$`));
     expect(res.body.type).toBe('STATIC');
     expect(res.body.trainerId).toBe(trainerId);
     expect(res.body.expiresAt).toBeNull();
