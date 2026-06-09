@@ -2,7 +2,7 @@
  * PracticePerfect Profile page.
  * Updated to use PracticePerfect design tokens.
  */
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { profileApi, type UpdateProfileDto, type SkillLevel } from '@/api/endpoints/profile';
@@ -66,6 +66,26 @@ export default function ProfilePage() {
       setTimeout(() => setSaveMessage(null), 3000);
     },
   });
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const photoMutation = useMutation({
+    mutationFn: (file: File) => profileApi.uploadPhoto(file),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: PROFILE_QUERY_KEY });
+      setSaveMessage('Photo updated');
+      setTimeout(() => setSaveMessage(null), 3000);
+    },
+    onError: (err) => {
+      setSaveMessage(err instanceof Error ? err.message : 'Photo upload failed');
+      setTimeout(() => setSaveMessage(null), 4000);
+    },
+  });
+
+  const onPhotoSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) photoMutation.mutate(file);
+    e.target.value = ''; // allow re-selecting the same file
+  };
 
   const onSubmit = (values: ProfileFormValues) => {
     const dto: UpdateProfileDto = {
@@ -165,6 +185,30 @@ export default function ProfilePage() {
                 </span>
               )}
             </div>
+
+            {/* Photo upload */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/png,image/jpeg,image/jpg,image/webp"
+              onChange={onPhotoSelected}
+              style={{ display: 'none' }}
+              aria-hidden="true"
+            />
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={photoMutation.isPending}
+              style={{ width: '100%', maxWidth: '160px', marginBottom: 'var(--space-lg)' }}
+            >
+              {photoMutation.isPending
+                ? 'Uploading…'
+                : profile?.photoUrl
+                  ? 'Change photo'
+                  : 'Upload photo'}
+            </Button>
 
             {/* Read-only locked rows */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>

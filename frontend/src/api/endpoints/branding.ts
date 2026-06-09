@@ -29,7 +29,7 @@ export const brandingApi = {
     const { token: csrf } = await csrfRes.json() as { token: string };
 
     const formData = new FormData();
-    formData.append('file', file);
+    formData.append('logo', file); // backend FileInterceptor('logo') expects this field name
 
     const res = await fetch('/api/v1/trainers/me/branding/logo', {
       method: 'POST',

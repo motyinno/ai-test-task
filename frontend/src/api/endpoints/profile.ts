@@ -46,4 +46,31 @@ export const profileApi = {
   get: (): Promise<ProfileResponseDto> => apiGet<ProfileResponseDto>('/me/profile'),
   update: (dto: UpdateProfileDto): Promise<ProfileResponseDto> =>
     apiPatch<ProfileResponseDto>('/me/profile', dto),
+
+  /**
+   * Upload a profile photo (multipart). Bypasses the JSON api client and uses the
+   * backend's expected field name `photo` (FileInterceptor('photo')).
+   */
+  uploadPhoto: async (file: File): Promise<{ photoUrl: string; thumbnailUrl?: string }> => {
+    const csrfRes = await fetch('/api/v1/auth/csrf', { credentials: 'include' });
+    const { token: csrf } = (await csrfRes.json()) as { token: string };
+    const formData = new FormData();
+    formData.append('photo', file);
+    const res = await fetch('/api/v1/me/profile/photo', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'X-CSRF-Token': csrf },
+      body: formData,
+    });
+    if (!res.ok) {
+      const { ApiError } = await import('../errors');
+      let msg = 'Photo upload failed';
+      try {
+        const body = (await res.json()) as { message?: string };
+        if (body.message) msg = body.message;
+      } catch { /* ignore */ }
+      throw new ApiError(msg, res.status, 'PHOTO_UPLOAD_FAILED');
+    }
+    return (await res.json()) as { photoUrl: string; thumbnailUrl?: string };
+  },
 };
