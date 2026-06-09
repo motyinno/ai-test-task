@@ -25,7 +25,7 @@
 │  - Pages: Login, Join (registration), Profile, Users (admin)   │
 │  - Features: Context switcher, impersonation banner, sharelinks│
 │  - State: TanStack Query, React Context, React Router v7       │
-│  - Design: Editorial Athletic (light/dark), brand tokens       │
+│  - Design: PracticePerfect (light/dark), white-label brand tokens│
 │  - Port: http://localhost:5173 (dev proxy /api → :3000)       │
 └────────────────────────────────────────────────────────────────┘
                              ↓ HTTP + Cookie + CSRF
@@ -68,14 +68,15 @@
 |--------|------|-----------------|
 | **auth** | `modules/auth/` | Login/logout, Passport local strategy, password reset, email verify, rate limiting |
 | **users** | `modules/users/` | SA directory, user CRUD, status transitions, GDPR anonymization |
-| **trainers** | `modules/trainers/` | Trainer creation (SA), org-scoped view, portal branding |
+| **trainers** | `modules/trainers/` | Trainer creation (SA), org-scoped view, portal branding (logo + color) |
 | **coaches** | `modules/coaches/` | Coach invite/accept, single-trainer guard, My Times availability |
-| **players** | `modules/players/` | ShareLink registration, multi-trainer assoc, child profiles, context switch |
+| **players** | `modules/players/` | ShareLink registration, multi-trainer assoc, child profiles, context switch, dateOfBirth |
 | **child-account** | `modules/child-account/` | Sub-login auth, CASL constraints (view/RSVP allowed, add-trainer/payment denied) |
 | **sharelinks** | `modules/sharelinks/` | Generate static/unique links, validation, atomic consume |
-| **approvals** | `modules/approvals/` | Child purchase approval flow, 48h expiry sweep, token setting |
-| **availability** | `modules/availability/` | Best Times (player), My Times (coach), conflict check, override (logged) |
-| **impersonation** | `modules/impersonation/` | SA impersonate, 1h cap, start/exit/history, bracket audit |
+| **approvals** | `modules/approvals/` | Child purchase approval flow, 48h expiry sweep, per-child token setting |
+| **availability** | `modules/availability/` | Best Times (player), My Times (coach), conflict check, override (logged, notifies coach) |
+| **impersonation** | `modules/impersonation/` | SA impersonate, 1h cap, start/exit/history, bracket audit, dual-actor attribution |
+| **notifications** | `modules/notifications/` | In-app notifications (AVAILABILITY_OVERRIDE, GENERAL types), per-user, mark-read |
 
 ### Cross-Cutting Modules
 
@@ -247,19 +248,23 @@ Full entity schema: see `specs/architect-architecture.md` and migration files in
 
 ## Phase-by-Phase PR History
 
-| Phase | PRs | Timeline | What Shipped |
-|-------|-----|----------|--------------|
-| **A: Foundation** | — | Parallel to task (TDD, bite-sized) | Scaffold, tenancy, auth, authz, session store, health check |
-| **B: User Management** | PR #2 | After A | SA CRUD, profiles, GDPR delete, photo upload, password reset |
-| **C: ShareLinks** | PR #3 | After B | Static/unique links, player reg, coach invite, validation, atomic consume |
-| **D: Family & Approvals** | PR #6 | After C | Child profiles, context switch, child auth, approval flow, 48h expiry |
-| **E: Availability** | PR #7 | After D | Best Times, My Times, conflict check, override (logged) |
-| **F: Impersonation & Audit** | PR #8 | After E | SA impersonate, 1h cap, bracket audit, dual-actor attribution, history |
-| **G: Branding & Polish** | PR #9 | After F | Portal branding (logo + color), perf hardening, security sweep |
-| **Frontend Integration** | PR #5 | Parallel to D/E/F | Auth UI, profile, context switcher, impersonation banner, sharelinks sheet |
-| **Entity Type Fix** | PR #4 | Between C & D | Explicit VARCHAR on nullable columns for app boot |
+| PR # | Component | Timeline | What Shipped | Status |
+|------|-----------|----------|--------------|--------|
+| **#2** | Phase B: User Management | After A | SA CRUD, profiles, GDPR delete, photo upload, password reset | ✅ Merged |
+| **#3** | Phase C: ShareLinks | After B | Static/unique links, player reg, coach invite, validation, atomic consume | ✅ Merged |
+| **#4** | Entity Type Fix (M-3/M-4) | Between C & D | Explicit VARCHAR on nullable columns for app boot (critical) | ✅ Merged |
+| **#5** | Frontend Foundation + Live Screens | Parallel to D/E/F | Login, Join, Profile, Users admin, ShareLinks sheet, auth/profile/routing, design tokens | ✅ Merged |
+| **#6** | Phase D: Family & Approvals | After C | Child profiles, context switch, child auth, approval flow (USD/TOKEN), 48h expiry, scheduler | ✅ Merged |
+| **#7** | Phase E: Availability | After D | Best Times, My Times, conflict check, override with logged reason | ✅ Merged |
+| **#8** | Phase F: Impersonation & Audit | After E | SA impersonate (1h cap, SA→SA blocked), bracket audit, dual-actor attribution, history | ✅ Merged |
+| **#9** | Phase G: Branding & Polish | After F | Portal branding (logo + accent color), indexing pass, perf script, security sweep | ✅ Merged |
+| **#10** | Gap Resolutions (Q-01.01/02/04/06) | After G | SkillLevel enum, dateOfBirth + age derivation, Nodemailer SMTP adapter + template registry, NotificationsModule, coach override notifications | 🔄 **Pending merge** |
+| **#11** | Frontend: Family/Approvals/Availability Screens (FI-1..FI-5) | After Phases D–G landed | FamilyDashboard, BestTimesGrid, MyTimesGrid, ApprovalsQueue, TrainerBranding, NotificationsBell, 170+ tests | 🔄 **Pending merge** |
 
-**Critical fix:** PR #4 (entity type fix, M-3/M-4) was required for production app boot; applied retroactively.
+**Notes:**
+- PR #4 (entity type fix) was critical and applied between phases.
+- Phases A (scaffold + foundation) were implemented as bite-sized TDD tasks in parallel before PRs.
+- Gap resolutions (PR #10) implement all Q-01 decisions; frontend screens (PR #11) integrate family/approval/availability management with browser-verify fixes.
 
 ---
 
@@ -372,6 +377,20 @@ Before committing:
 
 ---
 
+## Known Backend DTO Follow-Ups
+
+During the frontend integration (browser-verify pass on PR #11), the following API improvements were identified as real follow-ups (not blocking Epic-01):
+
+| Endpoint | Current Response | Desired Improvement | Epic Impact |
+|----------|------------------|-------------------|-------------|
+| `GET /players/me/children` | `trainers[]` array (IDs only) | Include `trainerName` in trainer refs for UI display | Makes FamilyDashboard more efficient; avoids N+1 trainer name fetches |
+| `GET /approvals` | Does not include child name | Include `childName` in approval records | ApprovalsQueue needs child name without extra call |
+| `POST /players/me/context` | Requires explicit call on login | Optionally default `activeContext` to first available trainer/self profile on login | Improves UX (fewer round-trips on login) |
+
+These are enhancements, not bugs; the frontend currently works around them with extra queries or data. Integrate them in Epic-02 or as a follow-up micro-optimization.
+
+---
+
 ## Next Steps for Contributors
 
 1. **Run the app locally:** Follow `README.md` (backend + frontend + seeding).
@@ -394,6 +413,6 @@ Before committing:
 
 ---
 
-**Last Updated:** 2026-06-09  
+**Last Updated:** 2026-06-09 (updated with gap resolutions Q-01.01/02/04/06 and frontend screens PR #11)  
 **Epic:** Epic-01 (User Management & Authentication)  
-**Status:** Complete (Phases A–G, frontend integrated, 330+ tests passing)
+**Status:** Phases A–G merged to master (core complete). PR #10 (gap resolutions) and PR #11 (frontend FI-1..FI-5) pending merge. 330+ backend tests + 170+ frontend tests passing.

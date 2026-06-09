@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Epic-01] - 2026-06-09
 
-**Complete Foundation:** User Management & Authentication (Phases A–G) merged to master. Backend fully tested (330+ tests, 50+ suites). Frontend foundation (auth, profile, context switching, impersonation) integrated. Platform ready for downstream epics (Events, Payments, Scheduling, etc.).
+**Complete Foundation:** User Management & Authentication (Phases A–G) merged to master (commits 6cd9ebc3 and earlier). Backend fully tested (330+ tests, 50+ suites). Gap resolutions (Q-01.01/02/04/06) in PR #10 (pending merge, branch `task-001/gap-resolutions`). Frontend foundation + family/approvals/availability screens in PR #11 (pending merge, branch `task-001/frontend-screens`). Platform ready for downstream epics (Events, Payments, Scheduling, etc.).
 
 ### Added
 
@@ -86,24 +86,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Security assertion sweep: review & document all auth boundaries, tenant filters, CASL rules
 - Perf results documented in `backend/apps/api/perf/coder-perf-results.md`
 
-#### Frontend (Vite + React)
-- Standalone Vite + React TypeScript project
+#### Gap Resolutions (Q-01.01 / Q-01.02 / Q-01.04 / Q-01.06) — **PR #10 (pending merge)**
+- **Q-01.01:** `SkillLevel` enum (`BEGINNER | INTERMEDIATE | ADVANCED | ELITE`) — trainer-set, nullable, Postgres enum type
+- **Q-01.02:** Child age model: store `dateOfBirth` (ISO date), derive `age` + `ageGroup` (U6–U18) at read; drop integer `age` column
+- **Q-01.04:** Nodemailer SMTP adapter (env-selected: dev/test use log adapter, prod uses `SMTP_HOST/PORT/USER/PASS/FROM` env vars) + full transactional template registry (10 templates: welcome, password-reset, email-verify, trainer-invite, coach-invite, approval-request, approval-result-approved, approval-result-denied, child-sharelink-blocked, availability-override)
+- **Q-01.06:** Coach override notification: `NotificationsModule` (new lightweight feature module with `Notification` entity, per-user, mark-read); on availability override, coach receives in-app notification + availability-override email
+- **Epic-05 boundary:** `TrainerProfile.stripeAccountId` + future payment fields are nullable placeholders owned by Epic-05; Epic-01 stores only, never writes payment logic
+- **Epic-08 boundary:** `JoinViaLinkDto` registration fields are the pre-fill contract; camp-to-User mapping implemented in Epic-08
+
+#### Frontend: Foundation & Signature Components (Vite + React) — **PR #5 (merged)**
+- Standalone Vite + React TypeScript project (`frontend/`, sibling to `backend/`)
 - Session-based auth client (no JWT; uses httpOnly cookies + CSRF tokens)
-- Login page (email/password)
-- Join page (ShareLink registration)
-- Profile page (edit all roles, photo upload)
-- Users page (Super Admin: create, list, edit, delete/anonymize users)
-- Context switcher (signature masthead; parent sees "Me" + children)
-- Impersonation banner (hazard tape styling, countdown timer, exit button)
-- ShareLink sheet (trainer generates static/unique links, copy, revoke, analytics)
-- PracticePerfect design system: Editorial Athletic tokens (light/dark, warm-paper/ink, brand accent)
-- Fonts: Clash Display (display), Satoshi (body), Martian Mono (data)
+- PracticePerfect design system (per `Task/designs/DESIGN_TOKENS.md`): grayscale neutral
+  canvas + dynamic white-label brand accent (default green), light/dark themes, rounded
+  radii, gradient+glow buttons. Replaced the earlier "Editorial Athletic" exploration.
+- Fonts: system sans-serif stack (system-ui / -apple-system) — no custom font dependencies
 - Tailwind CSS + CSS variables for runtime theming
+- White-label brand provider with runtime WCAG contrast guard
 - TanStack React Query for API state management
 - React Router v7 with role-based route guards
 - MSW for mock API in tests
 - Vitest + RTL for component/integration tests
 - WCAG a11y smoke tests + contrast assurance
+- Signature components: ContextSwitcher (masthead, parent→children switch), ImpersonationBanner (hazard stripe, countdown, auto-exit)
+- UI primitives: Button, Input, Sheet, DataTable, StatNumber (all token-driven, motion-gated on `prefers-reduced-motion`)
+
+#### Frontend: Live Screens (Auth, Admin, Profile, ShareLinks) — **PR #5 (merged)**
+- Login page (email/password form, rate-limit message, force password change flow)
+- Join page (ShareLink registration, family checklist for parents with children, child-blocked guard + parent email)
+- Profile page (role-specific fields, photo upload with progress, read-only email/role)
+- Users page (Super Admin: create, list, edit, deactivate, reactivate, delete/anonymize users; tale-of-the-tape counts)
+- ShareLink sheet (generate static/unique links, copy to clipboard, revoke, usage analytics; coach invite list)
+
+#### Frontend: Family & Approvals Screens — **PR #11 (pending merge, browser-verify fixes applied)**
+- FamilyDashboard (player cards, skill chips, age-group labels, add/remove child↔trainer associations)
+- BestTimesGrid (player/parent setting recurring weekly availability per child, per trainer)
+- MyTimesGrid (coach setting recurring weekly availability, multiple slots/day)
+- ApprovalsQueue (parent managing child purchase approvals: USD always pending, TOKEN with toggle auto-approve; 48h countdown ring; approve/deny/request-info; per-child token spend toggle)
+- TrainerBranding (logo upload, color picker with live preview via BrandProvider, WCAG contrast assurance)
+- NotificationsBell (in-app notification center; availability-override notifications; mark-read)
+- 170+ frontend tests covering auth, routing, context switching, family management, approvals, availability, branding
+- Browser-verify found+fixed 3 real integration bugs: login redirect routes, children bare-array shape, approval amount string parsing
+- Debugger pass stabilized flaky tests + added graceful fallbacks (e.g., missing trainer name labels)
 
 ### Changed
 

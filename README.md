@@ -29,7 +29,7 @@ The system is built in two layers:
                           ↓ HTTP (session cookie)
 ┌─────────────────────────────────────────────────────┐
 │ Frontend: Vite + React (TypeScript)                 │
-│ - Design system: Editorial Athletic (light/dark)   │
+│ - Design system: PracticePerfect (light + dark)    │
 │ - State: TanStack Query + React hooks               │
 │ - Tokens: PracticePerfect design tokens (Tailwind)  │
 │ - Vite dev proxy: /api → http://localhost:3000     │
@@ -109,7 +109,7 @@ Insert a Super Admin row directly (one-time, dev-only):
 ```bash
 # From backend/
 psql "postgresql://trainer_app:trainer_app_pass@localhost:5432/trainer_app_dev" -c "
-INSERT INTO public.user (
+INSERT INTO users (
   id, email, password_hash, role, status, email_verified, created_at
 ) VALUES (
   'a0000000-0000-0000-0000-000000000001'::uuid,
@@ -225,8 +225,9 @@ npm run test:coverage
 | **ChildAccountModule** | Constrained sub-login auth, CASL child constraints (view/RSVP allowed, add-trainer/payment denied) | Feature |
 | **ShareLinksModule** | Generate static (unlimited) / unique (1-use, 7-day) links, validation, atomic consumption | Feature |
 | **ApprovalsModule** | Child purchase approval state machine (Pending → Approved/Denied/Expired), 48h auto-expiry | Feature |
-| **AvailabilityModule** | Player Best Times / Coach My Times, conflict checks, trainer override (logged) | Feature |
+| **AvailabilityModule** | Player Best Times / Coach My Times, conflict checks, trainer override (logged, notifies coach) | Feature |
 | **ImpersonationModule** | SA impersonate users (1h cap), start/exit, bracketed audit, dual-actor attribution | Feature |
+| **NotificationsModule** | In-app notifications (availability override, general types), per-user, mark-read | Feature |
 | **AuthzModule** | `@Roles()` guard, CASL ability factory, tenant-aware policy enforcement | Cross-cutting |
 | **TenancyModule** | CLS-based tenant context, `TenantAwareRepository` base (structural filter), tenant interceptor | Cross-cutting |
 | **AuditModule** | Centralized audit writes (impersonation, deletion, override) | Cross-cutting |
@@ -275,19 +276,20 @@ Multi-write operations (GDPR delete, unique ShareLink consume, approval resoluti
 - **CI/CD:** No GitHub Actions / CI pipeline configured (Epic for later).
 - **Lint/Format:** Linting not wired in the CLI (manual runs available; no pre-commit hook).
 - **End-to-end Events/Payments:** Epics 02, 05 (out of scope for Epic-01).
-- **Frontend Screens (Pending):** Family/Approvals/Availability management UIs not yet built (Epic-02+).
+- **Real SMTP Email:** Nodemailer adapter uses dev log-adapter by default; set `EMAIL_PROVIDER=smtp` to enable real SMTP (requires SMTP_HOST/PORT/USER/PASS/FROM env vars).
 
-### Open Requirements
+### Resolved Gap Decisions (PR #10 & PR #11 pending merge)
 
-The following requirement clarifications remain open pending product/stakeholder input:
+The following open questions from the first TASK-001 docs pass have been **resolved** in branches `task-001/gap-resolutions` and `task-001/frontend-screens`:
 
-| ID | Title | Impact |
-|----|-------|--------|
-| Q-01.01 | Skill-level definitions (Beginner…Elite or custom?) | `PlayerProfile.skillLevel` is a free `varchar` placeholder until the enum is defined |
-| Q-01.02 | Age-group definition (birth year / age range / grade) | Child age model + availability/planning filters |
-| Q-01.04 | Full list of automated emails (welcome, reset, verify, invites, approvals, child-blocked, …) | EmailService uses a dev/log adapter; real provider + templates pending |
-| Q-01.06 | Should the coach be notified when their availability is overridden? | `AvailabilityService` has a tracked `TODO(Q-01.06)` stub awaiting Epic-02 |
-| Q-01.07 | Session timeout duration (1d / 7d / 30d?) | Defaults shipped (30-day sliding / ~14-day idle / 1h impersonation cap); value pending confirmation |
+| ID | Decision | Status |
+|----|----------|--------|
+| **Q-01.01** | SkillLevel enum: `BEGINNER \| INTERMEDIATE \| ADVANCED \| ELITE` (trainer-set, nullable) | ✅ Resolved (PR #10 pending) |
+| **Q-01.02** | Age model: store `dateOfBirth` (ISO date), derive `age` + `ageGroup` (U6–U18) at read | ✅ Resolved (PR #10 pending) |
+| **Q-01.04** | Email adapter: Nodemailer SMTP adapter + full transactional template registry (welcome, reset, verify, invites, approvals, child-blocked, override) | ✅ Resolved (PR #10 pending) |
+| **Q-01.06** | Coach override notification: coach receives email + in-app Notification on availability override | ✅ Resolved (PR #10 pending) |
+| **Epic-05 boundary** | TrainerProfile payment fields (`stripeAccountId`, future subscription/fee) are nullable placeholders owned by Epic-05; Epic-01 stores only | ✅ Documented (PR #10) |
+| **Epic-08 boundary** | Camp-to-User field mapping: `JoinViaLinkDto` carries registration fields; Epic-08 implements pre-fill mapping | ✅ Documented (PR #10) |
 
 ---
 
@@ -353,6 +355,12 @@ cd frontend && npm run build
 | `DATABASE_URL` | — | PostgreSQL connection: `postgresql://user:pass@host:5432/db` |
 | `SESSION_SECRET` | — | Encryption key for session store; should be a strong random string in production |
 | `PORT` | 3000 | HTTP listen port |
+| `EMAIL_PROVIDER` | `log` (dev default) | Email provider: `log` (dev/test, logs to console) or `smtp` (production) |
+| `SMTP_HOST` | — | SMTP server hostname (required if `EMAIL_PROVIDER=smtp`) |
+| `SMTP_PORT` | — | SMTP server port (required if `EMAIL_PROVIDER=smtp`), typically 587 (TLS) or 465 (SSL) |
+| `SMTP_USER` | — | SMTP authentication username (required if `EMAIL_PROVIDER=smtp`) |
+| `SMTP_PASS` | — | SMTP authentication password (required if `EMAIL_PROVIDER=smtp`) |
+| `SMTP_FROM` | — | Sender email address (required if `EMAIL_PROVIDER=smtp`), e.g., `noreply@example.com` |
 
 ### Frontend (.env.* or import.meta.env)
 
